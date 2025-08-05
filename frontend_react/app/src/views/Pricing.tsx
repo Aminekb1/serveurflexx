@@ -75,7 +75,7 @@ const Pricing = () => {
             <div className="bg-gray-50 p-6 rounded-lg shadow-md text-center hover:shadow-xl transition-shadow">
               <h3 className="text-2xl font-semibold text-gray-900 mb-4">Basic VPS</h3>
               <p className="text-4xl font-bold text-blue-600 mb-4">
-                ${vpsPrices.basic[isYearly ? 'yearly' : 'monthly'].toFixed(2)}/{isYearly ? 'yr' : 'mo'}
+                {vpsPrices.basic[isYearly ? 'yearly' : 'monthly'].toFixed(2)}TND/{isYearly ? 'yr' : 'mo'}
               </p>
               <ul className="text-gray-600 mb-6 space-y-2">
                 <li>1 vCPU</li>
@@ -96,7 +96,7 @@ const Pricing = () => {
               </span>
               <h3 className="text-2xl font-semibold text-gray-900 mb-4">Pro VPS</h3>
               <p className="text-4xl font-bold text-blue-600 mb-4">
-                ${vpsPrices.pro[isYearly ? 'yearly' : 'monthly'].toFixed(2)}/{isYearly ? 'yr' : 'mo'}
+                {vpsPrices.pro[isYearly ? 'yearly' : 'monthly'].toFixed(2)}TND/{isYearly ? 'yr' : 'mo'}
               </p>
               <ul className="text-gray-600 mb-6 space-y-2">
                 <li>2 vCPUs</li>
@@ -114,7 +114,7 @@ const Pricing = () => {
             <div className="bg-gray-50 p-6 rounded-lg shadow-md text-center hover:shadow-xl transition-shadow">
               <h3 className="text-2xl font-semibold text-gray-900 mb-4">Enterprise VPS</h3>
               <p className="text-4xl font-bold text-blue-600 mb-4">
-                ${vpsPrices.enterprise[isYearly ? 'yearly' : 'monthly'].toFixed(2)}/{isYearly ? 'yr' : 'mo'}
+                {vpsPrices.enterprise[isYearly ? 'yearly' : 'monthly'].toFixed(2)}TND/{isYearly ? 'yr' : 'mo'}
               </p>
               <ul className="text-gray-600 mb-6 space-y-2">
                 <li>4 vCPUs</li>
@@ -143,7 +143,8 @@ const Pricing = () => {
             <div className="bg-white p-6 rounded-lg shadow-md text-center hover:shadow-xl transition-shadow">
               <h3 className="text-2xl font-semibold text-gray-900 mb-4">Starter Dedicated</h3>
               <p className="text-4xl font-bold text-blue-600 mb-4">
-                ${dedicatedPrices.starter[isYearly ? 'yearly' : 'monthly'].toFixed(2)}/{isYearly ? 'yr' : 'mo'}
+                {/* ${dedicatedPrices.starter[isYearly ? 'yearly' : 'monthly'].toFixed(2)}/{isYearly ? 'yr' : 'mo'} */}
+                {dedicatedPrices.starter[isYearly ? 'yearly' : 'monthly'].toFixed(2)}TND/{isYearly ? 'yr' : 'mo'}
               </p>
               <ul className="text-gray-600 mb-6 space-y-2">
                 <li>4 Cores</li>
@@ -164,7 +165,7 @@ const Pricing = () => {
               </span>
               <h3 className="text-2xl font-semibold text-gray-900 mb-4">Advanced Dedicated</h3>
               <p className="text-4xl font-bold text-blue-600 mb-4">
-                ${dedicatedPrices.advanced[isYearly ? 'yearly' : 'monthly'].toFixed(2)}/{isYearly ? 'yr' : 'mo'}
+                {dedicatedPrices.advanced[isYearly ? 'yearly' : 'monthly'].toFixed(2)}TND/{isYearly ? 'yr' : 'mo'}
               </p>
               <ul className="text-gray-600 mb-6 space-y-2">
                 <li>8 Cores</li>
@@ -182,7 +183,7 @@ const Pricing = () => {
             <div className="bg-white p-6 rounded-lg shadow-md text-center hover:shadow-xl transition-shadow">
               <h3 className="text-2xl font-semibold text-gray-900 mb-4">Premium Dedicated</h3>
               <p className="text-4xl font-bold text-blue-600 mb-4">
-                ${dedicatedPrices.premium[isYearly ? 'yearly' : 'monthly'].toFixed(2)}/{isYearly ? 'yr' : 'mo'}
+                {dedicatedPrices.premium[isYearly ? 'yearly' : 'monthly'].toFixed(2)}TND/{isYearly ? 'yr' : 'mo'}
               </p>
               <ul className="text-gray-600 mb-6 space-y-2">
                 <li>16 Cores</li>

@@ -1,10 +1,10 @@
-// src/views/ResourcesSelection.tsx
-import { useEffect, useState } from 'react';
+// frontend_react/app/src/views/ResourcesSelection.tsx
+import { useEffect, useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
 import { AxiosError } from 'axios';
-import { FaServer, FaSearch, FaInfoCircle } from 'react-icons/fa';
+import { FaServer, FaSearch, FaInfoCircle, FaPlus } from 'react-icons/fa';
 import MainLayout from '../layouts/MainLayout';
 
 interface Resource {
@@ -17,6 +17,20 @@ interface Resource {
   nombreHeure: number;
   disponibilite: boolean;
   image?: string;
+}
+
+interface CustomVMFormData {
+  nom: string;
+  cpu: string;
+  ram: string;
+  stockage: string;
+  nombreHeure: string;
+}
+
+interface AvailableResources {
+  cpu: number;
+  ram: number;
+  storage: number;
 }
 
 const ResourcesSelection = () => {
@@ -33,14 +47,25 @@ const ResourcesSelection = () => {
   const [minPrice, setMinPrice] = useState<number | ''>('');
   const [maxPrice, setMaxPrice] = useState<number | ''>('');
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
+  const [isCustomVMModalOpen, setIsCustomVMModalOpen] = useState(false);
+  const [customVMFormData, setCustomVMFormData] = useState<CustomVMFormData>({
+    nom: '',
+    cpu: '',
+    ram: '',
+    stockage: '',
+    nombreHeure: '',
+  });
+  const [availableResources, setAvailableResources] = useState<AvailableResources>({ cpu: 0, ram: 0, storage: 0 });
   const itemsPerPage = 6;
 
-  const estimatePrice = (cpu: number, ram: number, type: 'server' | 'vm') => {
-    const hourlyRate = type === 'vm' ? cpu * 2 + ram * 2 : cpu * 10 + ram * 5;
-    return (hourlyRate * (duration || 1)).toFixed(2); // Default to 1 hour if duration is 0
+  const estimatePrice = (cpu: number, ram: number, stockage: number, type: 'server' | 'vm') => {
+    const hourlyRate = type === 'vm' ? cpu * 2 + ram * 2+ stockage* 2 : cpu * 10 + ram * 5+ stockage* 4;
+    return (hourlyRate * (duration || 1)).toFixed(2);
   };
 
   useEffect(() => {
+    if (loading) return;
+
     const fetchResources = async () => {
       try {
         const res = await api.get('/ressource/getAllRessources');
@@ -50,8 +75,20 @@ const ResourcesSelection = () => {
         setError(axiosError.response?.data?.message || 'Failed to fetch resources');
       }
     };
+
+    const fetchAvailableResources = async () => {
+      try {
+        const res = await api.get('/ressource/getAvailableResources');
+        setAvailableResources(res.data);
+      } catch (err) {
+        const axiosError = err as AxiosError<{ message?: string }>;
+        setError(axiosError.response?.data?.message || 'Failed to fetch available resources');
+      }
+    };
+
     fetchResources();
-  }, []);
+    fetchAvailableResources();
+  }, [loading]);
 
   const handleSelectResource = (resourceId: string) => {
     setSelectedResources((prev) =>
@@ -77,21 +114,82 @@ const ResourcesSelection = () => {
     setSelectedResource(resource);
   };
 
+  const handleCreateCustomVM = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!user) {
+      setError('You must be logged in to create a VM.');
+      navigate('/auth/register');
+      return;
+    }
+
+    const cpu = parseInt(customVMFormData.cpu) || 0;
+    const ram = parseInt(customVMFormData.ram) || 0;
+    const stockage = parseInt(customVMFormData.stockage) || 0;
+    const nombreHeure = parseInt(customVMFormData.nombreHeure) || 0;
+
+    // Client-side validation
+    if (!customVMFormData.nom) {
+      setError('Name is required.');
+      return;
+    }
+    if (cpu < 0 || ram < 0 || stockage < 0 || nombreHeure <= 0) {
+      setError('CPU, RAM, and Storage must be non-negative, and Hours must be positive.');
+      return;
+    }
+    if (cpu > availableResources.cpu || ram > availableResources.ram || stockage > availableResources.storage) {
+      setError(
+        `Requested resources exceed available: CPU (${availableResources.cpu} vCPUs), RAM (${availableResources.ram} GB), Storage (${availableResources.storage} GB)`
+      );
+      return;
+    }
+
+    const payload = {
+      nom: customVMFormData.nom,
+      cpu,
+      ram,
+      stockage,
+      nombreHeure,
+      clientId: user._id,
+    };
+
+    console.log('Submitting payload to /ressource/createCustomVM:', payload);
+
+    try {
+      const res = await api.post('/ressource/createCustomVM', payload);
+      setResources([...resources, res.data.ressource]);
+      setCustomVMFormData({
+        nom: '',
+        cpu: '',
+        ram: '',
+        stockage: '',
+        nombreHeure: '',
+      });
+      setIsCustomVMModalOpen(false);
+      setError('');
+    } catch (err) {
+      const axiosError = err as AxiosError<{ message?: string; available?: AvailableResources }>;
+      setError(axiosError.response?.data?.message || 'Failed to create custom VM');
+      console.error('Create VM error:', axiosError.response?.data || axiosError.message);
+    }
+  };
+
   const filteredResources = resources
     .filter((resource) => {
-      const price = parseFloat(estimatePrice(resource.cpu, resource.ram, resource.typeRessource));
+      const price = parseFloat(estimatePrice(resource.cpu, resource.ram,resource.stockage, resource.typeRessource));
       const min = minPrice !== '' ? parseFloat(minPrice.toString()) : 0;
       const max = maxPrice !== '' ? parseFloat(maxPrice.toString()) : Infinity;
       return (
-        resource.nom.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        resource.typeRessource.toLowerCase().includes(searchQuery.toLowerCase())
-      ) && price >= min && price <= max;
+        (resource.nom.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          resource.typeRessource.toLowerCase().includes(searchQuery.toLowerCase())) &&
+        price >= min &&
+        price <= max
+      );
     })
     .sort((a, b) => {
       if (!sortField) return 0;
       if (sortField === 'price') {
-        const aValue = parseFloat(estimatePrice(a.cpu, a.ram, a.typeRessource));
-        const bValue = parseFloat(estimatePrice(b.cpu, b.ram, b.typeRessource));
+        const aValue = parseFloat(estimatePrice(a.cpu, a.ram, a.stockage, a.typeRessource));
+        const bValue = parseFloat(estimatePrice(b.cpu, b.ram,b.stockage, b.typeRessource));
         return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
       } else {
         const aValue = a[sortField];
@@ -164,6 +262,12 @@ const ResourcesSelection = () => {
                     className="w-24 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+                <button
+                  onClick={() => setIsCustomVMModalOpen(true)}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center"
+                >
+                  <FaPlus className="mr-2" /> Create Custom VM
+                </button>
               </div>
             </div>
           </div>
@@ -171,6 +275,14 @@ const ResourcesSelection = () => {
 
         {/* Error Message */}
         {error && <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-lg">{error}</div>}
+
+        {/* Available Resources Display */}
+        <div className="mb-6 p-4 bg-blue-100 text-blue-700 rounded-lg">
+          <h3 className="font-semibold">Available Resources</h3>
+          <p>CPU: {availableResources.cpu} vCPUs</p>
+          <p>RAM: {availableResources.ram} GB</p>
+          <p>Storage: {availableResources.storage} GB</p>
+        </div>
 
         {/* Duration Input */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-6">
@@ -202,7 +314,7 @@ const ResourcesSelection = () => {
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">{resource.nom}</h3>
                   <p className="text-sm text-gray-600 mb-2">Type: {resource.typeRessource}</p>
                   <p className="text-sm font-medium text-gray-800 mb-4">
-                    Price: ${estimatePrice(resource.cpu, resource.ram, resource.typeRessource)} (for {duration} hours)
+                    Price: {estimatePrice(resource.cpu, resource.ram, resource.stockage, resource.typeRessource)}TND (for {duration} hours)
                   </p>
                   <button
                     onClick={() => handleShowDetails(resource)}
@@ -311,11 +423,13 @@ const ResourcesSelection = () => {
                     </div>
                     <div className="flex justify-between">
                       <dt>Hourly Rate:</dt>
-                      <dd>${(selectedResource.cpu * (selectedResource.typeRessource === 'vm' ? 2 : 10) + selectedResource.ram * (selectedResource.typeRessource === 'vm' ? 2 : 5)).toFixed(2)}</dd>
+                      <dd>{(selectedResource.cpu * (selectedResource.typeRessource === 'vm' ? 2 : 10) + selectedResource.ram * (selectedResource.typeRessource === 'vm' ? 2 : 5)).toFixed(2)} TND </dd>
                     </div>
                     <div className="flex justify-between font-medium text-gray-900">
                       <dt>Total Price (for {duration} hours):</dt>
-                      <dd>${estimatePrice(selectedResource.cpu, selectedResource.ram, selectedResource.typeRessource)}</dd>
+                      {/* <dd>${estimatePrice(selectedResource.cpu, selectedResource.ram, selectedResource.stockage, selectedResource.typeRessource)}</dd> */}
+                      <dd>{estimatePrice(selectedResource.cpu, selectedResource.ram, selectedResource.stockage, selectedResource.typeRessource)} TND</dd>
+
                     </div>
                   </dl>
                   <span className={`mt-4 inline-block px-2 py-1 rounded-full text-xs ${selectedResource.disponibilite ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
@@ -323,6 +437,96 @@ const ResourcesSelection = () => {
                   </span>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal for Creating Custom VM */}
+        {isCustomVMModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Create Custom VM</h3>
+              <form onSubmit={handleCreateCustomVM}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="nom" className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                    <input
+                      type="text"
+                      id="nom"
+                      value={customVMFormData.nom}
+                      onChange={(e) => setCustomVMFormData({ ...customVMFormData, nom: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="cpu" className="block text-sm font-medium text-gray-700 mb-1">CPU (vCPUs, Max: {availableResources.cpu})</label>
+                    <input
+                      type="number"
+                      id="cpu"
+                      value={customVMFormData.cpu}
+                      onChange={(e) => setCustomVMFormData({ ...customVMFormData, cpu: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                      max={availableResources.cpu}
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="ram" className="block text-sm font-medium text-gray-700 mb-1">RAM (GB, Max: {availableResources.ram})</label>
+                    <input
+                      type="number"
+                      id="ram"
+                      value={customVMFormData.ram}
+                      onChange={(e) => setCustomVMFormData({ ...customVMFormData, ram: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                      max={availableResources.ram}
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="stockage" className="block text-sm font-medium text-gray-700 mb-1">Storage (GB, Max: {availableResources.storage})</label>
+                    <input
+                      type="number"
+                      id="stockage"
+                      value={customVMFormData.stockage}
+                      onChange={(e) => setCustomVMFormData({ ...customVMFormData, stockage: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                      max={availableResources.storage}
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="nombreHeure" className="block text-sm font-medium text-gray-700 mb-1">Hours</label>
+                    <input
+                      type="number"
+                      id="nombreHeure"
+                      value={customVMFormData.nombreHeure}
+                      onChange={(e) => setCustomVMFormData({ ...customVMFormData, nombreHeure: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                      min="1"
+                    />
+                  </div>
+                </div>
+                <div className="mt-6 flex justify-end gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomVMModalOpen(false)}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center"
+                  >
+                    <FaPlus className="mr-2" /> Create VM
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

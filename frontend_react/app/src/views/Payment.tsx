@@ -221,22 +221,22 @@ const Payment = () => {
                 {resources.map((resource) => (
                   <div key={resource._id} className="flex justify-between items-center p-4 border-b border-gray-200">
                     <span>{resource.nom} ({resource.typeRessource})</span>
-                    <span>${estimatePrice(resource.cpu, resource.ram, resource.typeRessource)}</span>
+                    <span>{estimatePrice(resource.cpu, resource.ram, resource.typeRessource)} TND</span>
                   </div>
                 ))}
               </div>
               <dl className="text-sm text-gray-600 space-y-2 mb-6">
                 <div className="flex justify-between">
                   <dt>Subtotal:</dt>
-                  <dd>${totalPrice.toFixed(2)}</dd>
+                  <dd>{totalPrice.toFixed(2)} TND</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt>Shipping:</dt>
-                  <dd>$0.00</dd>
+                  <dd>0.00 TND</dd>
                 </div>
                 <div className="flex justify-between font-medium text-gray-900">
                   <dt>Total:</dt>
-                  <dd>${totalPrice.toFixed(2)}</dd>
+                  <dd>{totalPrice.toFixed(2)} TND</dd>
                 </div>
               </dl>
               <button onClick={handleNext} className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
@@ -252,7 +252,7 @@ const Payment = () => {
                 {resources.map((resource) => (
                   <div key={resource._id} className="flex justify-between items-center p-4 border-b border-gray-200">
                     <span>{resource.nom} ({resource.typeRessource})</span>
-                    <span>${estimatePrice(resource.cpu, resource.ram, resource.typeRessource)}</span>
+                    <span>{estimatePrice(resource.cpu, resource.ram, resource.typeRessource)} TND</span>
                   </div>
                 ))}
               </div>
@@ -337,7 +337,7 @@ const Payment = () => {
               <dl className="text-sm text-gray-600 space-y-2 mb-6">
                 <div className="flex justify-between">
                   <dt>Total Amount:</dt>
-                  <dd>${discountedPrice.toFixed(2)}</dd>
+                  <dd>{discountedPrice.toFixed(2)} TND</dd>
                 </div>
               </dl>
               {invoicePdf && (

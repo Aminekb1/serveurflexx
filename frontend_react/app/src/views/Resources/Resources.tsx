@@ -1,3 +1,4 @@
+// frontend_react\app\src\views\Resources\Resources.tsx
 import { useEffect, useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaServer, FaPlus, FaEdit, FaTrash, FaSearch } from 'react-icons/fa';
@@ -6,7 +7,6 @@ import api from '../../api';
 import { AxiosError } from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 
-// Define Resource interface
 interface Resource {
   _id: string;
   id: string;
@@ -21,7 +21,6 @@ interface Resource {
   image?: string;
 }
 
-// Define FormData interface
 interface FormData {
   id: string;
   nom: string;
@@ -33,6 +32,20 @@ interface FormData {
   disponibilite: boolean;
   statut: 'Active' | 'Inactive';
   image?: string;
+}
+
+interface CustomVMFormData {
+  nom: string;
+  cpu: string;
+  ram: string;
+  stockage: string;
+  nombreHeure: string;
+}
+
+interface AvailableResources {
+  cpu: number;
+  ram: number;
+  storage: number;
 }
 
 const Resources = () => {
@@ -52,19 +65,24 @@ const Resources = () => {
     statut: 'Active',
     image: '',
   });
+  const [customVMFormData, setCustomVMFormData] = useState<CustomVMFormData>({
+    nom: '',
+    cpu: '',
+    ram: '',
+    stockage: '',
+    nombreHeure: '',
+  });
   const [isEditing, setIsEditing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCustomVMModalOpen, setIsCustomVMModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [availableResources, setAvailableResources] = useState<AvailableResources>({ cpu: 0, ram: 0, storage: 0 });
   const itemsPerPage = 6;
 
   useEffect(() => {
-    console.log('Resources useEffect - User:', user, 'Loading:', loading);
-    if (loading) {
-      console.log('Still loading, skipping role check');
-      return;
-    }
-   
+    if (loading) return;
+
     const fetchResources = async () => {
       try {
         const res = await api.get('/ressource/getAllRessources');
@@ -74,8 +92,20 @@ const Resources = () => {
         setError(axiosError.response?.data?.message || 'Failed to fetch resources');
       }
     };
+
+    const fetchAvailableResources = async () => {
+      try {
+        const res = await api.get('/ressource/getAvailableResources');
+        setAvailableResources(res.data);
+      } catch (err) {
+        const axiosError = err as AxiosError<{ message?: string }>;
+        setError(axiosError.response?.data?.message || 'Failed to fetch available resources');
+      }
+    };
+
     fetchResources();
-  }, [user, loading, navigate]);
+    fetchAvailableResources();
+  }, [loading]);
 
   const handleAddOrUpdateResource = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -86,7 +116,7 @@ const Resources = () => {
         ram: parseInt(formData.ram),
         stockage: parseInt(formData.stockage),
         nombreHeure: parseInt(formData.nombreHeure),
-        image: formData.image || undefined, // Send only if provided
+        image: formData.image || undefined,
       };
 
       if (isEditing) {
@@ -113,8 +143,35 @@ const Resources = () => {
       setIsModalOpen(false);
     } catch (err) {
       const axiosError = err as AxiosError<{ message?: string }>;
-      console.log('API Error:', axiosError.response?.data);
       setError(axiosError.response?.data?.message || 'Failed to save resource');
+    }
+  };
+
+  const handleCreateCustomVM = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        nom: customVMFormData.nom,
+        cpu: parseInt(customVMFormData.cpu),
+        ram: parseInt(customVMFormData.ram),
+        stockage: parseInt(customVMFormData.stockage),
+        nombreHeure: parseInt(customVMFormData.nombreHeure),
+        clientId: user?._id,
+      };
+
+      const res = await api.post('/ressource/createCustomVM', payload);
+      setResources([...resources, res.data.ressource]);
+      setCustomVMFormData({
+        nom: '',
+        cpu: '',
+        ram: '',
+        stockage: '',
+        nombreHeure: '',
+      });
+      setIsCustomVMModalOpen(false);
+    } catch (err) {
+      const axiosError = err as AxiosError<{ message?: string; available?: AvailableResources }>;
+      setError(axiosError.response?.data?.message || 'Failed to create custom VM');
     }
   };
 
@@ -184,6 +241,10 @@ const Resources = () => {
     setIsModalOpen(true);
   };
 
+  const openCustomVMModal = () => {
+    setIsCustomVMModalOpen(true);
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
@@ -213,6 +274,12 @@ const Resources = () => {
             >
               <FaPlus className="mr-2" /> Add Resource
             </button>
+            <button
+              onClick={openCustomVMModal}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center"
+            >
+              <FaPlus className="mr-2" /> Create Custom VM
+            </button>
           </div>
         </div>
       </div>
@@ -221,6 +288,14 @@ const Resources = () => {
       {error && (
         <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-lg">{error}</div>
       )}
+
+      {/* Available Resources Display */}
+      <div className="mb-6 p-4 bg-blue-100 text-blue-700 rounded-lg">
+        <h3 className="font-semibold">Available Resources</h3>
+        <p>CPU: {availableResources.cpu} vCPUs</p>
+        <p>RAM: {availableResources.ram} GB</p>
+        <p>Storage: {availableResources.storage} GB</p>
+      </div>
 
       {/* Resource Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -304,7 +379,7 @@ const Resources = () => {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal for Adding/Editing Resource */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
@@ -314,9 +389,7 @@ const Resources = () => {
             <form onSubmit={handleAddOrUpdateResource}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="id" className="block text-sm font-medium text-gray-700 mb-1">
-                    ID
-                  </label>
+                  <label htmlFor="id" className="block text-sm font-medium text-gray-700 mb-1">ID</label>
                   <input
                     type="text"
                     id="id"
@@ -328,9 +401,7 @@ const Resources = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="nom" className="block text-sm font-medium text-gray-700 mb-1">
-                    Name
-                  </label>
+                  <label htmlFor="nom" className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                   <input
                     type="text"
                     id="nom"
@@ -341,9 +412,7 @@ const Resources = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="cpu" className="block text-sm font-medium text-gray-700 mb-1">
-                    CPU (vCPUs)
-                  </label>
+                  <label htmlFor="cpu" className="block text-sm font-medium text-gray-700 mb-1">CPU (vCPUs)</label>
                   <input
                     type="number"
                     id="cpu"
@@ -354,9 +423,7 @@ const Resources = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="typeRessource" className="block text-sm font-medium text-gray-700 mb-1">
-                    Type
-                  </label>
+                  <label htmlFor="typeRessource" className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                   <select
                     id="typeRessource"
                     value={formData.typeRessource}
@@ -369,9 +436,7 @@ const Resources = () => {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="ram" className="block text-sm font-medium text-gray-700 mb-1">
-                    RAM (GB)
-                  </label>
+                  <label htmlFor="ram" className="block text-sm font-medium text-gray-700 mb-1">RAM (GB)</label>
                   <input
                     type="number"
                     id="ram"
@@ -382,9 +447,7 @@ const Resources = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="stockage" className="block text-sm font-medium text-gray-700 mb-1">
-                    Storage (GB)
-                  </label>
+                  <label htmlFor="stockage" className="block text-sm font-medium text-gray-700 mb-1">Storage (GB)</label>
                   <input
                     type="number"
                     id="stockage"
@@ -395,9 +458,7 @@ const Resources = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="nombreHeure" className="block text-sm font-medium text-gray-700 mb-1">
-                    Hours
-                  </label>
+                  <label htmlFor="nombreHeure" className="block text-sm font-medium text-gray-700 mb-1">Hours</label>
                   <input
                     type="number"
                     id="nombreHeure"
@@ -408,9 +469,7 @@ const Resources = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="statut" className="block text-sm font-medium text-gray-700 mb-1">
-                    Status
-                  </label>
+                  <label htmlFor="statut" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                   <select
                     id="statut"
                     value={formData.statut}
@@ -423,9 +482,7 @@ const Resources = () => {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="disponibilite" className="block text-sm font-medium text-gray-700 mb-1">
-                    Availability
-                  </label>
+                  <label htmlFor="disponibilite" className="block text-sm font-medium text-gray-700 mb-1">Availability</label>
                   <select
                     id="disponibilite"
                     value={formData.disponibilite.toString()}
@@ -438,9 +495,7 @@ const Resources = () => {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="image" className="block text-sm font-medium text-gray-700 mb-1">
-                    Image
-                  </label>
+                  <label htmlFor="image" className="block text-sm font-medium text-gray-700 mb-1">Image</label>
                   <input
                     type="file"
                     id="image"
@@ -474,6 +529,92 @@ const Resources = () => {
                       <FaPlus className="mr-2" /> Add
                     </>
                   )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for Creating Custom VM */}
+      {isCustomVMModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Create Custom VM</h3>
+            <form onSubmit={handleCreateCustomVM}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="nom" className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <input
+                    type="text"
+                    id="nom"
+                    value={customVMFormData.nom}
+                    onChange={(e) => setCustomVMFormData({ ...customVMFormData, nom: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="cpu" className="block text-sm font-medium text-gray-700 mb-1">CPU (vCPUs, Max: {availableResources.cpu})</label>
+                  <input
+                    type="number"
+                    id="cpu"
+                    value={customVMFormData.cpu}
+                    onChange={(e) => setCustomVMFormData({ ...customVMFormData, cpu: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                    max={availableResources.cpu}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ram" className="block text-sm font-medium text-gray-700 mb-1">RAM (GB, Max: {availableResources.ram})</label>
+                  <input
+                    type="number"
+                    id="ram"
+                    value={customVMFormData.ram}
+                    onChange={(e) => setCustomVMFormData({ ...customVMFormData, ram: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                    max={availableResources.ram}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="stockage" className="block text-sm font-medium text-gray-700 mb-1">Storage (GB, Max: {availableResources.storage})</label>
+                  <input
+                    type="number"
+                    id="stockage"
+                    value={customVMFormData.stockage}
+                    onChange={(e) => setCustomVMFormData({ ...customVMFormData, stockage: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                    max={availableResources.storage}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="nombreHeure" className="block text-sm font-medium text-gray-700 mb-1">Hours</label>
+                  <input
+                    type="number"
+                    id="nombreHeure"
+                    value={customVMFormData.nombreHeure}
+                    onChange={(e) => setCustomVMFormData({ ...customVMFormData, nombreHeure: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end gap-4">
+                <button
+                  type="button"
+                  onClick={() => setIsCustomVMModalOpen(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center"
+                >
+                  <FaPlus className="mr-2" /> Create VM
                 </button>
               </div>
             </form>

@@ -241,7 +241,7 @@ const Landing = () => {
                 <p className="text-gray-600 mb-4">
                   "Serveur Flex made it easy to scale our app with their reliable VPS solutions."
                 </p>
-                <p className="text-gray-900 font-semibold">Molka Kbaier, CEO of TechCorp</p>
+                <p className="text-gray-900 font-semibold">Amine Kbaier, CEO of TechCorp</p>
               </div>
             </div>
             <div className="px-2">

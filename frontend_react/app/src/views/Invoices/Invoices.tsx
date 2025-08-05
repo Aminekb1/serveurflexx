@@ -81,7 +81,8 @@ const Invoices = () => {
                 invoices.map((invoice: Invoice) => (
                   <tr key={invoice._id} className="bg-white border-b hover:bg-gray-50">
                     <td className="px-6 py-4">{invoice._id}</td>
-                    <td className="px-6 py-4">€{invoice.montant}</td>
+                    {/* <td className="px-6 py-4">€{invoice.montant}</td> */}
+                    <td className="px-6 py-4">{invoice.montant}TND</td>
                     <td className="px-6 py-4">
                       <span
                         className={`px-2 py-1 rounded-full text-xs ${
