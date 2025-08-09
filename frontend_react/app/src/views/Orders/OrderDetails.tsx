@@ -18,10 +18,7 @@ interface Client {
   _id: string;
   email: string;
   role: string;
-  profile: {
-    firstName: string;
-    lastName: string;
-  };
+  name:string;
 }
 
 interface Order {
@@ -130,7 +127,7 @@ const OrderDetails = () => {
           </div>
           <div>
             <p className="text-sm text-gray-600 mb-2"><strong>Client:</strong></p>
-            <p className="text-lg text-gray-900">{order.client.profile.firstName} {order.client.profile.lastName}</p>
+            <p className="text-lg text-gray-900">{order.client.name} </p>
           </div>
           <div>
             <p className="text-sm text-gray-600 mb-2"><strong>Date:</strong></p>
