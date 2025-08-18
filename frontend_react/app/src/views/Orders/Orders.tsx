@@ -1,4 +1,4 @@
-import { useEffect, useState, FormEvent, useRef } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, Edit, Trash } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -24,14 +24,14 @@ interface Order {
   client: Client | null;
   dateCommande: string;
   ressources: { _id: string; nom?: string; cpu?: string; ram?: string; stockage?: string; nombreHeure?: number; disponibilite?: boolean; statut?: string; typeRessource?: string }[];
-  annulerCommande: boolean;
+  status: string;
 }
 
 // Define FormData interface for editing
 interface FormData {
   _id: string;
   dateCommande: string;
-  annulerCommande: boolean;
+  status: string;
 }
 
 const Orders = () => {
@@ -46,8 +46,7 @@ const Orders = () => {
   const itemsPerPage = 5;
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
-  const [formData, setFormData] = useState<FormData>({ _id: '', dateCommande: '', annulerCommande: false });
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [formData, setFormData] = useState<FormData>({ _id: '', dateCommande: '', status: 'non traité' });
 
   useEffect(() => {
     if (user) {
@@ -100,11 +99,11 @@ const Orders = () => {
       console.log('Updating order:', formData);
       const res = await api.put(`/commandes/updateCommandeById/${formData._id}`, {
         dateCommande: formData.dateCommande,
-        annulerCommande: formData.annulerCommande,
+        status: formData.status,
       });
       setOrders(orders.map((order) => (order._id === formData._id ? res.data : order)));
       setIsEditModalOpen(false);
-      setFormData({ _id: '', dateCommande: '', annulerCommande: false });
+      setFormData({ _id: '', dateCommande: '', status: 'non traité' });
     } catch (err) {
       const axiosError = err as AxiosError<{ message?: string }>;
       setError(axiosError.response?.data?.message || 'Failed to update order');
@@ -115,8 +114,8 @@ const Orders = () => {
     if (order.client) {
       setFormData({
         _id: order._id,
-        dateCommande: order.dateCommande,
-        annulerCommande: order.annulerCommande,
+        dateCommande: new Date(order.dateCommande).toISOString().split('T')[0],
+        status: order.status,
       });
       setIsEditModalOpen(true);
     }
@@ -145,6 +144,15 @@ const Orders = () => {
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentOrders = orders.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(orders.length / itemsPerPage);
+
+  const getStatusClass = (status: string) => {
+    switch (status) {
+      case 'accepté': return 'bg-green-100 text-green-800';
+      case 'refusé': return 'bg-red-100 text-red-800';
+      case 'en traitement': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
@@ -237,11 +245,9 @@ const Orders = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.ressources.length}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span
-                        className={`px-2 py-1 rounded-full text-xs ${
-                          order.annulerCommande ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                        }`}
+                        className={`px-2 py-1 rounded-full text-xs ${getStatusClass(order.status)}`}
                       >
-                        {order.annulerCommande ? 'Cancelled' : 'Active'}
+                        {order.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -258,14 +264,12 @@ const Orders = () => {
                         >
                           <Edit size={16} />
                         </button>
-                        {!order.annulerCommande && (
-                          <button
-                            onClick={() => setIsDeleteConfirmOpen(order._id)}
-                            className="text-red-600 hover:text-red-800 px-2 py-1 rounded bg-red-100 hover:bg-red-200"
-                          >
-                            <Trash size={16} />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => setIsDeleteConfirmOpen(order._id)}
+                          className="text-red-600 hover:text-red-800 px-2 py-1 rounded bg-red-100 hover:bg-red-200"
+                        >
+                          <Trash size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -321,15 +325,17 @@ const Orders = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="annulerCommande" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                   <select
-                    id="annulerCommande"
-                    value={formData.annulerCommande ? 'true' : 'false'}
-                    onChange={(e) => setFormData({ ...formData, annulerCommande: e.target.value === 'true' })}
+                    id="status"
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="false">Active</option>
-                    <option value="true">Cancelled</option>
+                    <option value="accepté">Accepté</option>
+                    <option value="refusé">Refusé</option>
+                    <option value="en traitement">En traitement</option>
+                    <option value="non traité">Non traité</option>
                   </select>
                 </div>
               </div>

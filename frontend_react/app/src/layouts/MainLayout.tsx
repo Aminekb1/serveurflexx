@@ -75,6 +75,14 @@ const MainLayout = ({ children }: MainLayoutProps) => {
             >
               Resources
             </NavLink>
+            <NavLink
+                  to="/MyResources"
+                  className={({ isActive }) =>
+                    isActive ? 'text-blue-600 font-semibold' : 'text-gray-600 hover:text-blue-600'
+                  }
+                >
+                  my commandes
+                </NavLink>
             {user && (
               <NavLink
                 to="/dashboard"

@@ -1,11 +1,16 @@
+// frontend_react\app\src\views\dashboards\Dashboard.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaServer, FaFileInvoice, FaBell } from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api';
- // Adjust path if needed
 import { AxiosError } from 'axios';
 
+// Import template components (adjust paths if needed)
+import StatsOverview from '../../components/dashboard/StatsOverview';
+import PopularProducts from '../../components/dashboard/PopularProducts';
+import SalesProfit from '../../components/dashboard/SalesProfit';
+import SystemStats from '../../components/dashboard/SystemStats';
+import InfrastructureStats from '../../components/dashboard/InfrastructureStats';
 
 // Define interfaces for data types
 interface Order {
@@ -31,19 +36,53 @@ interface Notification {
   lu: boolean;
 }
 
-interface SystemStats {
+interface SystemStatsData {
   hostname: string;
   type: string;
   platform: string;
 }
 
+interface CommandeStats {
+  totalCommandes: number;
+  totalMontant: number;
+  montantMoyen: number;
+  commandesParMois: { [key: string]: number };
+  peakMonth: string;
+  growthPeriod: string;
+  mostConsumed: { name: string; count: number }[];
+}
+
+interface FactureStats {
+  totalFactures: number;
+  totalMontant: number;
+  totalPaye: number;
+  tauxPaiement: number;
+  parStatut: { [key: string]: number };
+}
+
+interface NotificationStats {
+  totalNotifications: number;
+  tauxLu: number;
+  parType: { [key: string]: number };
+}
+
+interface RessourceStats {
+  totalRessources: number;
+  tauxDisponibilite: number;
+  parType: { [key: string]: number };
+}
+
 const Dashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
+  const [, setOrders] = useState<Order[]>([]);
+  const [, setInvoices] = useState<Invoice[]>([]);
+  const [, setNotifications] = useState<Notification[]>([]);
+  const [systemStats, setSystemStats] = useState<SystemStatsData | null>(null);
+  const [commandeStats, setCommandeStats] = useState<CommandeStats | null>(null);
+  const [factureStats, setFactureStats] = useState<FactureStats | null>(null);
+  const [notificationStats, setNotificationStats] = useState<NotificationStats | null>(null);
+  const [ressourceStats, setRessourceStats] = useState<RessourceStats | null>(null);
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
@@ -67,6 +106,19 @@ const Dashboard = () => {
             const statsRes = await api.get('/os/getInformationFromPc');
             setSystemStats(statsRes.data);
           }
+
+          // Fetch dashboard stats
+          const commandeStatsRes = await api.get('/stats/commandes');
+          setCommandeStats(commandeStatsRes.data);
+
+          const factureStatsRes = await api.get('/stats/factures');
+          setFactureStats(factureStatsRes.data);
+
+          const notificationStatsRes = await api.get('/stats/notifications');
+          setNotificationStats(notificationStatsRes.data);
+
+          const ressourceStatsRes = await api.get('/stats/ressources');
+          setRessourceStats(ressourceStatsRes.data);
         } catch (err) {
           const axiosError = err as AxiosError<{ message?: string }>;
           setError(axiosError.response?.data?.message || 'Failed to fetch data');
@@ -76,39 +128,8 @@ const Dashboard = () => {
     }
   }, [user]);
 
-  const handlePayInvoice = async (invoiceId: string) => {
-    try {
-      await api.post(`/factures/${invoiceId}/payer`, { methodePaiement: 'credit_card' });
-      setInvoices(invoices.map((inv: Invoice) => 
-        inv._id === invoiceId ? { ...inv, statutPaiement: 'payé' } : inv
-      ));
-    } catch (err) {
-      const axiosError = err as AxiosError<{ message?: string }>;
-      setError(axiosError.response?.data?.message || 'Payment failed');
-    }
-  };
 
-  const handleMarkNotificationRead = async (notificationId: string) => {
-    try {
-      await api.put(`/notifications/markAsRead/${notificationId}`);
-      setNotifications(notifications.map((notif: Notification) => 
-        notif._id === notificationId ? { ...notif, lu: true } : notif
-      ));
-    } catch (err) {
-      const axiosError = err as AxiosError<{ message?: string }>;
-      setError(axiosError.response?.data?.message || 'Failed to mark as read');
-    }
-  };
 
-  const handleCancelOrder = async (orderId: string) => {
-    try {
-      await api.delete(`/commandes/${orderId}`);
-      setOrders(orders.filter((order: Order) => order._id !== orderId));
-    } catch (err) {
-      const axiosError = err as AxiosError<{ message?: string }>;
-      setError(axiosError.response?.data?.message || 'Failed to cancel order');
-    }
-  };
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
@@ -120,110 +141,54 @@ const Dashboard = () => {
   }
 
   return (
-    
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 className="text-3xl font-bold text-gray-900 mb-8">Welcome, {user.name}</h2>
-        {error && <p className="text-red-600 mb-4">{error}</p>}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <h2 className="text-3xl font-bold text-gray-900 mb-8">Welcome</h2>
+      {error && <p className="text-red-600 mb-4">{error}</p>}
 
-        {/* System Stats (Admin Only) */}
-        {user.role === 'admin' && systemStats && (
-          <div className="mb-12">
-            <h3 className="text-2xl font-semibold text-gray-900 mb-4">System Stats</h3>
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <p><strong>Hostname:</strong> {systemStats.hostname}</p>
-              <p><strong>OS Type:</strong> {systemStats.type}</p>
-              <p><strong>Platform:</strong> {systemStats.platform}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Orders */}
+      {/* Analytics Dashboard Section using Template Components */}
+      {commandeStats && factureStats && notificationStats && ressourceStats && (
         <div className="mb-12">
-          <h3 className="text-2xl font-semibold text-gray-900 mb-4 flex items-center">
-            <FaServer className="mr-2" /> Your Orders
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {orders.length === 0 ? (
-              <p className="text-gray-600">No orders found</p>
-            ) : (
-              orders.map((order: Order) => (
-                <div key={order._id} className="bg-white p-6 rounded-lg shadow-md">
-                  <p><strong>Order ID:</strong> {order._id}</p>
-                  <p><strong>Date:</strong> {new Date(order.dateCommande).toLocaleDateString()}</p>
-                  <p><strong>Resources:</strong> {order.ressources.length}</p>
-                  <p><strong>Status:</strong> {order.annulerCommande ? 'Cancelled' : 'Active'}</p>
-                  {!order.annulerCommande && (
-                    <button
-                      onClick={() => handleCancelOrder(order._id)}
-                      className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-                    >
-                      Cancel Order
-                    </button>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+          <h3 className="text-2xl font-semibold text-gray-900 mb-4">Analytics Overview</h3>
+          {/* Use StatsOverview for key metrics */}
+          <StatsOverview 
+            data={{
+              totalOrders: commandeStats.totalCommandes,
+              totalRevenue: commandeStats.totalMontant,
+              averageOrder: commandeStats.montantMoyen,
+              paymentRate: factureStats.tauxPaiement,
+              peakPeriod: commandeStats.peakMonth,
+              growthPeriod: commandeStats.growthPeriod,
+            }} 
+          />
 
-        {/* Invoices */}
-        <div className="mb-12">
-          <h3 className="text-2xl font-semibold text-gray-900 mb-4 flex items-center">
-            <FaFileInvoice className="mr-2" /> Your Invoices
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {invoices.length === 0 ? (
-              <p className="text-gray-600">No invoices found</p>
-            ) : (
-              invoices.map((invoice: Invoice) => (
-                <div key={invoice._id} className="bg-white p-6 rounded-lg shadow-md">
-                  <p><strong>Invoice ID:</strong> {invoice._id}</p>
-                  <p><strong>Amount:</strong> €{invoice.montant}</p>
-                  <p><strong>Status:</strong> {invoice.statutPaiement}</p>
-                  {invoice.statutPaiement !== 'payé' && (
-                    <button
-                      onClick={() => handlePayInvoice(invoice._id)}
-                      className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                    >
-                      Pay Now
-                    </button>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+          {/* Sales/Orders Profit/Trends Chart */}
+          <SalesProfit 
+            data={Object.entries(commandeStats.commandesParMois).map(([month, count]) => ({ name: month, value: count }))} 
+          />
 
-        {/* Notifications */}
-        <div>
-          <h3 className="text-2xl font-semibold text-gray-900 mb-4 flex items-center">
-            <FaBell className="mr-2" /> Notifications
-          </h3>
-          <div className="grid grid-cols-1 gap-6">
-            {notifications.length === 0 ? (
-              <p className="text-gray-600">No notifications found</p>
-            ) : (
-              notifications.map((notif: Notification) => (
-                <div key={notif._id} className="bg-white p-6 rounded-lg shadow-md flex justify-between items-center">
-                  <div>
-                    <p><strong>{notif.type}</strong>: {notif.message}</p>
-                    <p><strong>Status:</strong> {notif.lu ? 'Read' : 'Unread'}</p>
-                  </div>
-                  {!notif.lu && (
-                    <button
-                      onClick={() => handleMarkNotificationRead(notif._id)}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                    >
-                      Mark as Read
-                    </button>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
+          {/* Popular Products (Most Consumed Resources) */}
+          <PopularProducts 
+            products={commandeStats.mostConsumed.map(({ name, count }) => ({ name, sales: count }))} 
+          />
+
+          {/* System Stats */}
+          {user.role === 'admin' && systemStats && (
+            <SystemStats data={systemStats} />
+          )}
+
+          {/* Infrastructure/Resource Stats */}
+          <InfrastructureStats 
+            data={{
+              totalResources: ressourceStats.totalRessources,
+              availability: ressourceStats.tauxDisponibilite,
+            }} 
+          />
+
         </div>
-      </div>
-    
+      )}
+
+      
+    </div>
   );
 };
 

@@ -13,6 +13,8 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
+    "@headlessui/react": "^2.2.7",
+    "@heroicons/react": "^2.2.0",
     "@material-tailwind/react": "^2.1.10",
     "@mui/icons-material": "^7.1.0",
     "@mui/material": "^7.1.0",
@@ -27,7 +29,7 @@
     "apexcharts": "3.48.0",
     "axios": "^1.9.0",
     "chance": "^1.1.11",
-    "chart.js": "^4.4.8",
+    "chart.js": "^4.5.0",
     "cors": "^2.8.5",
     "cytoscape": "^3.31.1",
     "date-fns": "^2.30.0",

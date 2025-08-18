@@ -1,120 +1,68 @@
+// frontend_react\app\src\components\dashboard\SalesProfit.tsx
+import React from 'react';
+import Chart from 'react-apexcharts';
 
-import Chart from "react-apexcharts";
-import CardBox from "../shared/CardBox";
-const SalesProfit = () => {
+interface Props {
+  data: { name: string; value: number }[];
+}
 
+const SalesProfit: React.FC<Props> = ({ data }) => {
+  // Handle empty or invalid data
+  const chartData = data.length > 0 ? data : [{ name: 'No Data', value: 0 }];
 
-  const optionexpenses: any = {
+  const chartConfig = {
     series: [
       {
-        name: "This year",
-        data: [9, 5, 3, 7, 5, 10, 3],
-      },
-      {
-        name: "Last year ",
-        data: [6, 3, 9, 5, 4, 6, 4],
+        name: 'Orders',
+        data: chartData.map(item => item.value),
       },
     ],
-    chart: {
-      fontFamily: "inherit",
-      type: "bar",
-      height: 350,
-      offsetY: 10,
-      offsetX: -18,
-      toolbar: {
-        show: false,
+    options: {
+      chart: {
+        type: 'line' as const,
+        height: 350,
+        toolbar: {
+          show: true, // Enable toolbar for zooming/panning
+        },
       },
-    },
-    grid: {
-      show: true,
-      strokeDashArray: 3,
-      borderColor: "rgba(0,0,0,.1)",
-    },
-    colors: ["var(--color-primary)", "var(--color-secondary)"],
-    plotOptions: {
-      bar: {
-        borderRadius: 5,
-        horizontal: false,
-        columnWidth: "30%",
-        endingShape: "rounded",
+      xaxis: {
+        categories: chartData.map(item => item.name),
+        title: {
+          text: 'Month',
+        },
       },
-    },
-    dataLabels: {
-      enabled: false,
-    },
-    stroke: {
-      show: true,
-      width: 5,
-      colors: ["transparent"],
-    },
-    xaxis: {
-      type: "category",
-      categories: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-
-      axisTicks: {
-        show: false,
+      yaxis: {
+        title: {
+          text: 'Number of Orders',
+        },
+        min: 0, // Ensure y-axis starts at 0
       },
-      axisBorder: {
-        show: false,
+      title: {
+        text: 'Orders Over Time',
+        align: 'left' as const,
       },
-      labels: {
+      tooltip: {
+        enabled: true, // Enable tooltips for better UX
+        y: {
+          formatter: (value: number) => `${value} orders`, // Explicitly type 'value' as number
+        },
+      },
+      noData: {
+        text: 'No data available',
+        align: 'center' as const, // Use 'center' as a literal type
+        verticalAlign: 'middle' as const,
         style: {
-          colors: "#a1aab2",
+          color: '#000000',
+          fontSize: '14px',
         },
       },
     },
-    yaxis: {
-      labels: {
-        style: {
-          colors: "#a1aab2",
-        },
-      },
-      min: 0,
-      max: 12,
-      tickAmount: 4,
-    },
-
-    fill: {
-      opacity: 1,
-      colors: ["var(--color-primary)", "var(--color-secondary)"],
-    },
-    tooltip: {
-      theme: "dark",
-    },
-    legend: {
-      show: false,
-    },
-
-    responsive: [
-      {
-        breakpoint: 767,
-        options: {
-          stroke: {
-            show: false,
-            width: 5,
-            colors: ["transparent"],
-          },
-        },
-      },
-    ],
   };
 
-
   return (
-    <CardBox>
-      <div className="flex justify-between items-center">
-        <h5 className="card-title">Sales Profit</h5>
-      </div>
-        <div>
-          <Chart
-            options={optionexpenses}
-            series={optionexpenses.series}
-            type="bar"
-            height="315px"
-            width={"100%"}
-          />
-        </div>
-    </CardBox>
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <Chart options={chartConfig.options} series={chartConfig.series} type="line" height={350} />
+    </div>
   );
 };
 

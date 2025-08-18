@@ -1,6 +1,4 @@
-// frontend_react\app\src\views\Resources\Resources.tsx
 import { useEffect, useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { FaServer, FaPlus, FaEdit, FaTrash, FaSearch } from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api';
@@ -19,6 +17,21 @@ interface Resource {
   disponibilite: boolean;
   statut: 'Active' | 'Inactive';
   image?: string;
+  os: 'ubuntu' | 'windows' | 'linux' | 'macOs' | 'CentOs';
+  network?: string;
+  iso?: string;
+}
+
+interface Network {
+  network: string;
+  name: string;
+  type: string;
+}
+
+interface ISO {
+  datastore: string;
+  path: string;
+  fullPath: string;
 }
 
 interface FormData {
@@ -32,6 +45,9 @@ interface FormData {
   disponibilite: boolean;
   statut: 'Active' | 'Inactive';
   image?: string;
+  os: 'ubuntu' | 'windows' | 'linux' | 'macOs' | 'CentOs';
+  network?: string;
+  iso?: string;
 }
 
 interface CustomVMFormData {
@@ -40,18 +56,23 @@ interface CustomVMFormData {
   ram: string;
   stockage: string;
   nombreHeure: string;
+  os: 'ubuntu' | 'windows' | 'linux' | 'macOs' | 'CentOs';
+  network?: string;
+  iso?: string;
 }
 
 interface AvailableResources {
   cpu: number;
   ram: number;
   storage: number;
+  os: 'ubuntu' | 'windows' | 'linux' | 'macOs' | 'CentOs';
 }
 
 const Resources = () => {
   const { user, loading } = useAuth();
-  const navigate = useNavigate();
   const [resources, setResources] = useState<Resource[]>([]);
+  const [networks, setNetworks] = useState<Network[]>([]);
+  const [isos, setIsos] = useState<ISO[]>([]);
   const [error, setError] = useState<string>('');
   const [formData, setFormData] = useState<FormData>({
     id: uuidv4(),
@@ -64,6 +85,9 @@ const Resources = () => {
     disponibilite: true,
     statut: 'Active',
     image: '',
+    os: 'ubuntu',
+    network: '',
+    iso: '',
   });
   const [customVMFormData, setCustomVMFormData] = useState<CustomVMFormData>({
     nom: '',
@@ -71,13 +95,16 @@ const Resources = () => {
     ram: '',
     stockage: '',
     nombreHeure: '',
+    os: 'ubuntu',
+    network: '',
+    iso: '',
   });
   const [isEditing, setIsEditing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCustomVMModalOpen, setIsCustomVMModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [availableResources, setAvailableResources] = useState<AvailableResources>({ cpu: 0, ram: 0, storage: 0 });
+  const [availableResources, setAvailableResources] = useState<AvailableResources>({ cpu: 0, ram: 0, storage: 0, os: 'ubuntu' });
   const itemsPerPage = 6;
 
   useEffect(() => {
@@ -86,6 +113,7 @@ const Resources = () => {
     const fetchResources = async () => {
       try {
         const res = await api.get('/ressource/getAllRessources');
+        console.log('Resources fetched:', res.data);
         setResources(res.data);
       } catch (err) {
         const axiosError = err as AxiosError<{ message?: string }>;
@@ -95,7 +123,8 @@ const Resources = () => {
 
     const fetchAvailableResources = async () => {
       try {
-        const res = await api.get('/ressource/getAvailableResources');
+        const res = await api.get('/ressource/getAvailableResources?_t=' + new Date().getTime());
+        console.log('Available resources fetched:', res.data);
         setAvailableResources(res.data);
       } catch (err) {
         const axiosError = err as AxiosError<{ message?: string }>;
@@ -103,8 +132,32 @@ const Resources = () => {
       }
     };
 
+    const fetchAvailableNetworks = async () => {
+      try {
+        const res = await api.get('/ressource/getAvailableNetworks');
+        console.log('Networks fetched:', res.data);
+        setNetworks(res.data);
+      } catch (err) {
+        const axiosError = err as AxiosError<{ message?: string }>;
+        setError(axiosError.response?.data?.message || 'Failed to fetch available networks');
+      }
+    };
+
+    const fetchAvailableISOs = async () => {
+      try {
+        const res = await api.get('/ressource/getAvailableISOs');
+        console.log('ISOs fetched:', res.data);
+        setIsos(res.data);
+      } catch (err) {
+        const axiosError = err as AxiosError<{ message?: string }>;
+        setError(axiosError.response?.data?.message || 'Failed to fetch available ISOs');
+      }
+    };
+
     fetchResources();
     fetchAvailableResources();
+    fetchAvailableNetworks();
+    fetchAvailableISOs();
   }, [loading]);
 
   const handleAddOrUpdateResource = async (e: FormEvent<HTMLFormElement>) => {
@@ -117,6 +170,8 @@ const Resources = () => {
         stockage: parseInt(formData.stockage),
         nombreHeure: parseInt(formData.nombreHeure),
         image: formData.image || undefined,
+        network: formData.network || undefined,
+        iso: formData.iso || undefined,
       };
 
       if (isEditing) {
@@ -138,6 +193,9 @@ const Resources = () => {
         disponibilite: true,
         statut: 'Active',
         image: '',
+        os: 'ubuntu',
+        network: '',
+        iso: '',
       });
       setIsEditing(false);
       setIsModalOpen(false);
@@ -150,16 +208,37 @@ const Resources = () => {
   const handleCreateCustomVM = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
+      const cpu = parseInt(customVMFormData.cpu) || 0;
+      const ram = parseInt(customVMFormData.ram) || 0;
+      const stockage = parseInt(customVMFormData.stockage) || 0;
+      const nombreHeure = parseInt(customVMFormData.nombreHeure) || 0;
+
+      if (cpu < 0 || ram < 0 || stockage < 0 || nombreHeure <= 0) {
+        setError('CPU, RAM, and Storage must be non-negative, and Hours must be positive.');
+        return;
+      }
+      if (cpu > availableResources.cpu || ram > availableResources.ram || stockage > availableResources.storage) {
+        setError(
+          `Requested resources exceed available: CPU (${availableResources.cpu} vCPUs), RAM (${availableResources.ram} GB), Storage (${availableResources.storage} GB)`
+        );
+        return;
+      }
+
       const payload = {
         nom: customVMFormData.nom,
-        cpu: parseInt(customVMFormData.cpu),
-        ram: parseInt(customVMFormData.ram),
-        stockage: parseInt(customVMFormData.stockage),
-        nombreHeure: parseInt(customVMFormData.nombreHeure),
+        cpu,
+        ram,
+        stockage,
+        nombreHeure,
+        os: customVMFormData.os,
+        network: customVMFormData.network || undefined,
+        iso: customVMFormData.iso || undefined,
         clientId: user?._id,
       };
 
+      console.log('Sending VM creation payload:', payload);
       const res = await api.post('/ressource/createCustomVM', payload);
+      console.log('VM creation response:', res.data);
       setResources([...resources, res.data.ressource]);
       setCustomVMFormData({
         nom: '',
@@ -167,8 +246,12 @@ const Resources = () => {
         ram: '',
         stockage: '',
         nombreHeure: '',
+        os: 'ubuntu',
+        network: '',
+        iso: '',
       });
       setIsCustomVMModalOpen(false);
+      setError('');
     } catch (err) {
       const axiosError = err as AxiosError<{ message?: string; available?: AvailableResources }>;
       setError(axiosError.response?.data?.message || 'Failed to create custom VM');
@@ -187,6 +270,9 @@ const Resources = () => {
       disponibilite: resource.disponibilite,
       statut: resource.statut,
       image: resource.image || '',
+      os: resource.os || 'ubuntu',
+      network: resource.network || '',
+      iso: resource.iso || '',
     });
     setIsEditing(true);
     setIsModalOpen(true);
@@ -236,6 +322,9 @@ const Resources = () => {
       disponibilite: true,
       statut: 'Active',
       image: '',
+      os: 'ubuntu',
+      network: '',
+      iso: '',
     });
     setIsEditing(false);
     setIsModalOpen(true);
@@ -319,6 +408,9 @@ const Resources = () => {
                   <li>RAM: {resource.ram} GB</li>
                   <li>Storage: {resource.stockage} GB</li>
                   <li>Hours: {resource.nombreHeure}</li>
+                  <li>OS: {resource.os}</li>
+                  <li>Network: {resource.network || 'Aucun'}</li>
+                  <li>ISO: {resource.iso || 'Aucun'}</li>
                 </ul>
                 <div className="flex flex-wrap gap-2 mb-4">
                   <span className={`px-2 py-1 rounded-full text-xs ${resource.disponibilite ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
@@ -507,6 +599,58 @@ const Resources = () => {
                     <img src={formData.image} alt="Preview" className="mt-2 h-20 w-auto object-cover" />
                   )}
                 </div>
+                <div>
+                  <label htmlFor="os" className="block text-sm font-medium text-gray-700 mb-1">Operating System</label>
+                  <select
+                    id="os"
+                    value={formData.os}
+                    onChange={(e) => setFormData({ ...formData, os: e.target.value as 'ubuntu' | 'windows' | 'linux' | 'macOs' | 'CentOs' })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="ubuntu">Ubuntu</option>
+                    <option value="windows">Windows</option>
+                    <option value="linux">Linux</option>
+                    <option value="macOs">MacOS</option>
+                    <option value="CentOs">CentOS</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="network" className="block text-sm font-medium text-gray-700 mb-1">Network</label>
+                  <select
+                    id="network"
+                    value={formData.network || ''}
+                    onChange={(e) => setFormData({ ...formData, network: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a network</option>
+                    {networks.map((network) => (
+                      <option key={network.network} value={network.network}>
+                        {network.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="iso" className="block text-sm font-medium text-gray-700 mb-1">ISO Image</label>
+                  <select
+                    id="iso"
+                    value={formData.iso || ''}
+                    onChange={(e) => setFormData({ ...formData, iso: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select an ISO</option>
+                    {isos.length === 0 ? (
+                      <option value="" disabled>No ISOs available</option>
+                    ) : (
+                      isos.map((iso) => (
+                        <option key={iso.fullPath} value={iso.fullPath}>
+                          {iso.fullPath}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
               </div>
               <div className="mt-6 flex justify-end gap-4">
                 <button
@@ -564,6 +708,7 @@ const Resources = () => {
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
                     max={availableResources.cpu}
+                    min="0"
                   />
                 </div>
                 <div>
@@ -576,6 +721,7 @@ const Resources = () => {
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
                     max={availableResources.ram}
+                    min="0"
                   />
                 </div>
                 <div>
@@ -588,6 +734,7 @@ const Resources = () => {
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
                     max={availableResources.storage}
+                    min="0"
                   />
                 </div>
                 <div>
@@ -599,7 +746,60 @@ const Resources = () => {
                     onChange={(e) => setCustomVMFormData({ ...customVMFormData, nombreHeure: e.target.value })}
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
+                    min="1"
                   />
+                </div>
+                <div>
+                  <label htmlFor="os" className="block text-sm font-medium text-gray-700 mb-1">Operating System</label>
+                  <select
+                    id="os"
+                    value={customVMFormData.os}
+                    onChange={(e) => setCustomVMFormData({ ...customVMFormData, os: e.target.value as 'ubuntu' | 'windows' | 'linux' | 'macOs' | 'CentOs' })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="ubuntu">Ubuntu</option>
+                    <option value="windows">Windows</option>
+                    <option value="linux">Linux</option>
+                    <option value="macOs">MacOS</option>
+                    <option value="CentOs">CentOS</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="network" className="block text-sm font-medium text-gray-700 mb-1">Network</label>
+                  <select
+                    id="network"
+                    value={customVMFormData.network || ''}
+                    onChange={(e) => setCustomVMFormData({ ...customVMFormData, network: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a network</option>
+                    {networks.map((network) => (
+                      <option key={network.network} value={network.network}>
+                        {network.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="iso" className="block text-sm font-medium text-gray-700 mb-1">ISO Image</label>
+                  <select
+                    id="iso"
+                    value={customVMFormData.iso || ''}
+                    onChange={(e) => setCustomVMFormData({ ...customVMFormData, iso: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select an ISO</option>
+                    {isos.length === 0 ? (
+                      <option value="" disabled>No ISOs available</option>
+                    ) : (
+                      isos.map((iso) => (
+                        <option key={iso.fullPath} value={iso.fullPath}>
+                          {iso.fullPath}
+                        </option>
+                      ))
+                    )}
+                  </select>
                 </div>
               </div>
               <div className="mt-6 flex justify-end gap-4">

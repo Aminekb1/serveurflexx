@@ -33,7 +33,8 @@ const Resources = Loadable(lazy(() => import('../views/Resources/Resources')));
 const AccountSettings = Loadable(lazy(() => import('../views/AccountSettings/AccountSettings')));
 const ResourcesSelection = Loadable(lazy(() => import('../views/ResourcesSelection')));
 const Payment = Loadable(lazy(() => import('../views/Payment')));
-// Authentication
+const MyResources = Loadable(lazy(() => import('../views/MyResources')));
+// Authenticationconst Payment = Loadable(lazy(() => import('../views/Payment')));
 const Login = Loadable(lazy(() => import('../views/auth/login/Login')));
 const Register = Loadable(lazy(() => import('../views/auth/register/Register')));
 const Error = Loadable(lazy(() => import('../views/auth/error/Error')));
@@ -57,6 +58,7 @@ const Router = [
       { path: 'Support', element: <Support /> },
       { path: 'resources', element: <ResourcesSelection /> },
       { path: 'Payment', element: <Payment /> },
+      { path: 'MyResources', element: <MyResources /> },
     ],
   },
   {

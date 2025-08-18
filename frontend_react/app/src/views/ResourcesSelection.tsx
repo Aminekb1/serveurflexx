@@ -1,4 +1,3 @@
-// frontend_react/app/src/views/ResourcesSelection.tsx
 import { useEffect, useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +16,21 @@ interface Resource {
   nombreHeure: number;
   disponibilite: boolean;
   image?: string;
+  os: 'ubuntu' | 'windows' | 'linux' | 'macOs' | 'CentOs';
+  network?: string;
+  iso?: string; // Added iso field
+}
+
+interface Network {
+  network: string;
+  name: string;
+  type: string;
+}
+
+interface ISO {
+  datastore: string;
+  path: string;
+  fullPath: string;
 }
 
 interface CustomVMFormData {
@@ -25,6 +39,9 @@ interface CustomVMFormData {
   ram: string;
   stockage: string;
   nombreHeure: string;
+  os: 'ubuntu' | 'windows' | 'linux' | 'macOs' | 'CentOs';
+  network?: string;
+  iso?: string; // Added iso field
 }
 
 interface AvailableResources {
@@ -37,6 +54,8 @@ const ResourcesSelection = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [resources, setResources] = useState<Resource[]>([]);
+  const [networks, setNetworks] = useState<Network[]>([]);
+  const [isos, setIsos] = useState<ISO[]>([]); // Added isos state
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [duration, setDuration] = useState<number>(0);
   const [error, setError] = useState<string>('');
@@ -54,12 +73,15 @@ const ResourcesSelection = () => {
     ram: '',
     stockage: '',
     nombreHeure: '',
+    os: 'ubuntu',
+    network: '',
+    iso: '', // Added iso field
   });
   const [availableResources, setAvailableResources] = useState<AvailableResources>({ cpu: 0, ram: 0, storage: 0 });
   const itemsPerPage = 6;
 
   const estimatePrice = (cpu: number, ram: number, stockage: number, type: 'server' | 'vm') => {
-    const hourlyRate = type === 'vm' ? cpu * 2 + ram * 2+ stockage* 2 : cpu * 10 + ram * 5+ stockage* 4;
+    const hourlyRate = type === 'vm' ? cpu * 2 + ram * 2 + stockage * 2 : cpu * 10 + ram * 5 + stockage * 4;
     return (hourlyRate * (duration || 1)).toFixed(2);
   };
 
@@ -86,8 +108,31 @@ const ResourcesSelection = () => {
       }
     };
 
+    const fetchAvailableNetworks = async () => {
+      try {
+        const res = await api.get('/ressource/getAvailableNetworks');
+        setNetworks(res.data);
+      } catch (err) {
+        const axiosError = err as AxiosError<{ message?: string }>;
+        setError(axiosError.response?.data?.message || 'Failed to fetch available networks');
+      }
+    };
+
+    const fetchAvailableISOs = async () => {
+      try {
+        const res = await api.get('/ressource/getAvailableISOs');
+        console.log('ISOs fetched:', res.data);
+        setIsos(res.data);
+      } catch (err) {
+        const axiosError = err as AxiosError<{ message?: string }>;
+        setError(axiosError.response?.data?.message || 'Failed to fetch available ISOs');
+      }
+    };
+
     fetchResources();
     fetchAvailableResources();
+    fetchAvailableNetworks();
+    fetchAvailableISOs(); // Added ISO fetch
   }, [loading]);
 
   const handleSelectResource = (resourceId: string) => {
@@ -127,7 +172,6 @@ const ResourcesSelection = () => {
     const stockage = parseInt(customVMFormData.stockage) || 0;
     const nombreHeure = parseInt(customVMFormData.nombreHeure) || 0;
 
-    // Client-side validation
     if (!customVMFormData.nom) {
       setError('Name is required.');
       return;
@@ -149,6 +193,9 @@ const ResourcesSelection = () => {
       ram,
       stockage,
       nombreHeure,
+      os: customVMFormData.os,
+      network: customVMFormData.network || undefined,
+      iso: customVMFormData.iso || undefined, // Added iso to payload
       clientId: user._id,
     };
 
@@ -163,6 +210,9 @@ const ResourcesSelection = () => {
         ram: '',
         stockage: '',
         nombreHeure: '',
+        os: 'ubuntu',
+        network: '',
+        iso: '', // Reset iso field
       });
       setIsCustomVMModalOpen(false);
       setError('');
@@ -175,7 +225,7 @@ const ResourcesSelection = () => {
 
   const filteredResources = resources
     .filter((resource) => {
-      const price = parseFloat(estimatePrice(resource.cpu, resource.ram,resource.stockage, resource.typeRessource));
+      const price = parseFloat(estimatePrice(resource.cpu, resource.ram, resource.stockage, resource.typeRessource));
       const min = minPrice !== '' ? parseFloat(minPrice.toString()) : 0;
       const max = maxPrice !== '' ? parseFloat(maxPrice.toString()) : Infinity;
       return (
@@ -189,7 +239,7 @@ const ResourcesSelection = () => {
       if (!sortField) return 0;
       if (sortField === 'price') {
         const aValue = parseFloat(estimatePrice(a.cpu, a.ram, a.stockage, a.typeRessource));
-        const bValue = parseFloat(estimatePrice(b.cpu, b.ram,b.stockage, b.typeRessource));
+        const bValue = parseFloat(estimatePrice(b.cpu, b.ram, a.stockage, b.typeRessource));
         return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
       } else {
         const aValue = a[sortField];
@@ -313,8 +363,11 @@ const ResourcesSelection = () => {
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">{resource.nom}</h3>
                   <p className="text-sm text-gray-600 mb-2">Type: {resource.typeRessource}</p>
+                  <p className="text-sm text-gray-600 mb-2">OS: {resource.os}</p>
+                  <p className="text-sm text-gray-600 mb-2">Network: {resource.network || 'Aucun'}</p>
+                  <p className="text-sm text-gray-600 mb-2">ISO: {resource.iso || 'Aucun'}</p> {/* Added ISO display */}
                   <p className="text-sm font-medium text-gray-800 mb-4">
-                    Price: {estimatePrice(resource.cpu, resource.ram, resource.stockage, resource.typeRessource)}TND (for {duration} hours)
+                    Price: {estimatePrice(resource.cpu, resource.ram, resource.stockage, resource.typeRessource)} TND (for {duration} hours)
                   </p>
                   <button
                     onClick={() => handleShowDetails(resource)}
@@ -404,6 +457,8 @@ const ResourcesSelection = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 mb-2">Type: {selectedResource.typeRessource}</p>
+                  <p className="text-sm text-gray-600 mb-2">Network: {selectedResource.network || 'Aucun'}</p>
+                  <p className="text-sm text-gray-600 mb-2">ISO: {selectedResource.iso || 'Aucun'}</p> {/* Added ISO display */}
                   <dl className="text-sm text-gray-600 space-y-2">
                     <div className="flex justify-between">
                       <dt>CPU:</dt>
@@ -423,13 +478,11 @@ const ResourcesSelection = () => {
                     </div>
                     <div className="flex justify-between">
                       <dt>Hourly Rate:</dt>
-                      <dd>{(selectedResource.cpu * (selectedResource.typeRessource === 'vm' ? 2 : 10) + selectedResource.ram * (selectedResource.typeRessource === 'vm' ? 2 : 5)).toFixed(2)} TND </dd>
+                      <dd>{(selectedResource.cpu * (selectedResource.typeRessource === 'vm' ? 2 : 10) + selectedResource.ram * (selectedResource.typeRessource === 'vm' ? 2 : 5)).toFixed(2)} TND</dd>
                     </div>
                     <div className="flex justify-between font-medium text-gray-900">
                       <dt>Total Price (for {duration} hours):</dt>
-                      {/* <dd>${estimatePrice(selectedResource.cpu, selectedResource.ram, selectedResource.stockage, selectedResource.typeRessource)}</dd> */}
                       <dd>{estimatePrice(selectedResource.cpu, selectedResource.ram, selectedResource.stockage, selectedResource.typeRessource)} TND</dd>
-
                     </div>
                   </dl>
                   <span className={`mt-4 inline-block px-2 py-1 rounded-full text-xs ${selectedResource.disponibilite ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
@@ -509,6 +562,58 @@ const ResourcesSelection = () => {
                       required
                       min="1"
                     />
+                  </div>
+                  <div>
+                    <label htmlFor="os" className="block text-sm font-medium text-gray-700 mb-1">Operating System</label>
+                    <select
+                      id="os"
+                      value={customVMFormData.os}
+                      onChange={(e) => setCustomVMFormData({ ...customVMFormData, os: e.target.value as 'ubuntu' | 'windows' | 'linux' | 'macOs' | 'CentOs' })}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="ubuntu">Ubuntu</option>
+                      <option value="windows">Windows</option>
+                      <option value="linux">Linux</option>
+                      <option value="macOs">MacOS</option>
+                      <option value="CentOs">CentOS</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="network" className="block text-sm font-medium text-gray-700 mb-1">Network</label>
+                    <select
+                      id="network"
+                      value={customVMFormData.network || ''}
+                      onChange={(e) => setCustomVMFormData({ ...customVMFormData, network: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select a network</option>
+                      {networks.map((network) => (
+                        <option key={network.network} value={network.network}>
+                          {network.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="iso" className="block text-sm font-medium text-gray-700 mb-1">ISO Image</label>
+                    <select
+                      id="iso"
+                      value={customVMFormData.iso || ''}
+                      onChange={(e) => setCustomVMFormData({ ...customVMFormData, iso: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select an ISO</option>
+                      {isos.length === 0 ? (
+                        <option value="" disabled>No ISOs available</option>
+                      ) : (
+                        isos.map((iso) => (
+                          <option key={iso.fullPath} value={iso.fullPath}>
+                            {iso.fullPath}
+                          </option>
+                        ))
+                      )}
+                    </select>
                   </div>
                 </div>
                 <div className="mt-6 flex justify-end gap-4">
