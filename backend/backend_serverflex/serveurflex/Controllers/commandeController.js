@@ -114,46 +114,53 @@ exports.searchCommandes = async (req, res) => {
   }
 };
 
+
 exports.updateCommandeById = async (req, res) => {
   try {
     const { id } = req.params;
-    const { client, dateCommande, adresseLivraison, ressources, status, montant } = req.body;  // Added montant
+    const { client, dateCommande, adresseLivraison, ressources, status, montant } = req.body;
 
     const commande = await commandeModel.findById(id);
-    if (!commande) {
-      return res.status(404).json({ message: "Commande not found" });
-    }
+    if (!commande) return res.status(404).json({ message: "Commande not found" });
 
+    // Si on passe au statut accepté -> vérifier dispo et réserver
     if (status === 'accepté') {
+      console.log('Accepting order:', id);
+
+      // Vérifier que chaque ressource existe et est disponible
       for (let resId of commande.ressources) {
-        const res = await ressourceModel.findById(resId);
-        if (!res || !res.disponible) {
-          return res.status(400).json({ message: 'Une ou plusieurs ressources ne sont pas disponibles' });
+        const resource = await ressourceModel.findById(resId);
+        if (!resource) {
+          return res.status(400).json({ message: 'Ressource introuvable', resourceId: resId });
+        }
+        // Utiliser le champ correct 'disponibilite'
+        if (resource.disponibilite === false) {
+          return res.status(400).json({ message: 'Une ou plusieurs ressources ne sont pas disponibles', resourceId: resId });
         }
       }
-      if (!commande.paymentValidated) {
-        return res.status(400).json({ message: 'Paiement non finalisé' });
-      }
 
+      // Mettre à jour l'user (si tu utilises allocatedRessources côté user)
       await userModel.findByIdAndUpdate(commande.client, {
-        $push: { allocatedRessources: { $each: commande.ressources } }
+        $addToSet: { allocatedRessources: { $each: commande.ressources } }
       });
 
-      // Update each resource: set not available and allocation start time
+      // Marquer les ressources comme non-disponibles et définir allocatedStart = maintenant
+      const now = new Date();
       for (let resId of commande.ressources) {
         await ressourceModel.findByIdAndUpdate(resId, {
-          disponible: false,
-          allocatedStart: new Date()
+          $set: {
+            disponibilite: false,
+            allocatedStart: now
+          }
         });
       }
     }
 
+    // Mettre à jour les champs de la commande
     if (client) commande.client = client;
     if (dateCommande) {
       const newDate = new Date(dateCommande);
-      if (isNaN(newDate.getTime())) {
-        return res.status(400).json({ message: 'Invalid date format for dateCommande' });
-      }
+      if (isNaN(newDate.getTime())) return res.status(400).json({ message: 'Invalid date format for dateCommande' });
       commande.dateCommande = newDate;
     }
     if (adresseLivraison) commande.adresseLivraison = adresseLivraison;
@@ -164,19 +171,14 @@ exports.updateCommandeById = async (req, res) => {
     await commande.save();
 
     const updatedCommande = await commandeModel.findById(id).populate("client ressources");
-    res.status(200).json(updatedCommande);
+    return res.status(200).json(updatedCommande);
   } catch (error) {
-    console.error('Error in updateCommandeById:', error); // Add this for debugging - check your server console
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({ message: error.message });
-    }
-    if (error.name === 'CastError') {
-      return res.status(400).json({ message: 'Invalid data type or ID' });
-    }
-    res.status(500).json({ message: error.message });
+    console.error('Error in updateCommandeById:', error);
+    if (error.name === 'ValidationError') return res.status(400).json({ message: error.message });
+    if (error.name === 'CastError') return res.status(400).json({ message: 'Invalid data type or ID' });
+    return res.status(500).json({ message: `Server error: ${error.message}` });
   }
 };
-
 
 exports.getAllCommandees = async (req, res) => {
   try {

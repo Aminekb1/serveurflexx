@@ -18,6 +18,12 @@ const ressourceSchema = new mongoose.Schema({
   network: { type: String },
   iso: { type: String },
   commandes: [{type: mongoose.Schema.Types.ObjectId, ref:"Commande" }]  ,
+  connectionDetails: {
+    ipAddress: { type: String },
+    username: { type: String },
+    password: { type: String },
+    protocol: { type: String, enum: ['ssh', 'rdp'] }
+  },
   allocatedStart: {type: Date,default: null},
 });
 

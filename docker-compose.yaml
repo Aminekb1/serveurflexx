@@ -2,7 +2,29 @@
 
 services:
  
+  backend:
+    build: ./backend/backend_serverflex/serveuflex  # Chemin vers le Dockerfile du backend
+    image: aminekbaier/backend_serverflex:1.0.0
+    container_name: backend_serverflex
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - Mongo_Url=mongodb://mongo:27017/serveurflex
+    depends_on:
+      - mongo
+    networks:
+      - 9antra2
 
+  frontend:
+    build: ./frontend_react  # Chemin vers le Dockerfile du frontend
+    image: aminekbaier/serveurflex-frontend:1.0.0
+    container_name: serveurflex-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
   mongo:
     image: mongo
     container_name: mongo
@@ -13,6 +35,7 @@ services:
       - mongo_data:/data/db
     networks:
       - 9antra2
+
 
 volumes:
   

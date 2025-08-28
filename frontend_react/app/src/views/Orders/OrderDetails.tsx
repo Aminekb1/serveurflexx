@@ -5,7 +5,6 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../api';
 import { AxiosError } from 'axios';
 
-// Define interfaces
 interface Resource {
   _id: string;
   nom: string;
@@ -50,7 +49,7 @@ const OrderDetails = () => {
       const fetchOrder = async () => {
         try {
           const res = await api.get(`/commandes/getCommandeById/${id}`);
-          console.log('Order Data:', res.data); // Debug
+          console.log('Order Data:', res.data);
           setOrder(res.data);
           setFormData({ 
             _id: res.data._id, 
@@ -69,22 +68,24 @@ const OrderDetails = () => {
   const handleUpdateOrder = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      console.log('Updating order:', formData); // Debug
+      console.log('Updating order:', formData);
       const res = await api.put(`/commandes/updateCommandeById/${formData._id}`, {
         dateCommande: formData.dateCommande,
         status: formData.status,
       });
       setOrder(res.data);
       setIsEditModalOpen(false);
+      setError(''); // Clear error on success
     } catch (err) {
       const axiosError = err as AxiosError<{ message?: string }>;
       setError(axiosError.response?.data?.message || 'Failed to update order');
+      console.error('Update Error:', axiosError.response?.data);
     }
   };
 
   const handleDeleteOrder = async () => {
     try {
-      console.log('Deleting order:', id); // Debug
+      console.log('Deleting order:', id);
       await api.delete(`/commandes/deleteCommandeById/${id}`);
       navigate('/dashboard/Orders');
     } catch (err) {
@@ -117,21 +118,18 @@ const OrderDetails = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
       <div className="mb-6">
         <h2 className="text-3xl font-bold text-gray-900 flex items-center">
           <FaServer className="mr-2" /> Order Details
         </h2>
       </div>
 
-      {/* Error Message */}
       {error && (
         <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-lg">
           {error}
         </div>
       )}
 
-      {/* Order Summary Card */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -149,9 +147,7 @@ const OrderDetails = () => {
           <div>
             <p className="text-sm text-gray-600 mb-2"><strong>Status:</strong></p>
             <p className="text-lg text-gray-900">
-              <span
-                className={`px-2 py-1 rounded-full text-sm ${getStatusClass(order.status)}`}
-              >
+              <span className={`px-2 py-1 rounded-full text-sm ${getStatusClass(order.status)}`}>
                 {order.status}
               </span>
             </p>
@@ -159,7 +155,6 @@ const OrderDetails = () => {
         </div>
       </div>
 
-      {/* Resources Card */}
       <div className="bg-white p-6 rounded-lg shadow-md">
         <h3 className="text-xl font-semibold text-gray-900 mb-4">Resources</h3>
         {order.ressources.length === 0 ? (
@@ -178,7 +173,6 @@ const OrderDetails = () => {
         )}
       </div>
 
-      {/* Action Buttons */}
       <div className="mt-6 flex justify-end gap-4">
         <button
           onClick={() => {
@@ -197,7 +191,6 @@ const OrderDetails = () => {
         </button>
       </div>
 
-      {/* Edit Modal */}
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
@@ -250,7 +243,6 @@ const OrderDetails = () => {
         </div>
       )}
 
-      {/* Delete Confirmation */}
       {isDeleteConfirmOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">

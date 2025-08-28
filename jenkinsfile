@@ -1,0 +1,217 @@
+pipeline {
+    agent any
+
+ environment {
+        DOCKER_HOST = "npipe:////./pipe/docker_engine"
+        SONARQUBE_URL = 'http://192.168.101.6:9000'
+        NEXUS_URL = 'http://192.168.101.6:8081'
+        DOCKER_REGISTRY = 'aminekbaier'
+        BACKEND_IMAGE = "${DOCKER_REGISTRY}/serveurflex-backend"
+        FRONTEND_IMAGE = "${DOCKER_REGISTRY}/serveurflex-frontend"
+    }
+
+    stages {
+        stage ("Clean up"){
+            steps {
+                deleteDir()
+            }
+        }
+       stage('Checkout GIT') {
+            steps {
+                echo 'Checkout unified repository (frontend + backend)'
+                git branch: 'main', url: 'https://github.com/Aminekb1/serveurflexx.git'
+            }
+        }
+        stage ("Verify Docker") {
+            steps {
+                bat 'docker --version'
+                bat 'docker info'
+            }
+        }
+        stage ("Generate docker image") {
+            steps {
+                script {
+                    try {
+                        bat "docker build -t Aminekb1/serveurflex2:1.1.${env.BUILD_NUMBER} ."
+                    } catch (Exception e) {
+                        bat 'docker info'
+                        error("Échec de la construction de l'image Docker")
+                    }
+                }
+            }
+        }
+        stage("Install Dependencies") {
+            parallel {
+                stage("Backend deps") {
+                    steps {
+                        dir('backend') {
+                            bat 'npm install'
+                        }
+                    }
+                }
+                stage("Frontend deps") {
+                    steps {
+                        bat 'npm install'
+                    }
+                }
+            }
+        }
+
+        stage("Run Tests") {
+            parallel {
+                stage("Backend tests") {
+                    steps {
+                        dir('backend') {
+                            bat 'npm test'
+                        }
+                    }
+                }
+                stage("Frontend tests") {
+                    steps {
+                        bat 'npm test -- --watchAll=false'
+                    }
+                }
+            }
+        }
+
+        stage("Build Applications") {
+            parallel {
+                stage("Build Backend") {
+                    steps {
+                        dir('backend') {
+                            bat 'npm run build || echo No build script, continuing...'
+                        }
+                    }
+                }
+                stage("Build Frontend") {
+                    steps {
+                        bat 'npm run build'
+                    }
+                }
+            }
+        }
+
+        stage("SonarQube Analysis") {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'sonarqube-credentials',
+                    usernameVariable: 'SONAR_USER', passwordVariable: 'SONAR_PASS')]) {
+                    dir('backend') {
+                        bat """
+                            sonar-scanner ^
+                            -Dsonar.projectKey=serveurflex-backend ^
+                            -Dsonar.sources=. ^
+                            -Dsonar.host.url=${SONARQUBE_URL} ^
+                            -Dsonar.login=%SONAR_USER% ^
+                            -Dsonar.password=%SONAR_PASS%
+                        """
+                    }
+                    bat """
+                        sonar-scanner ^
+                        -Dsonar.projectKey=serveurflex-frontend ^
+                        -Dsonar.sources=. ^
+                        -Dsonar.host.url=${SONARQUBE_URL} ^
+                        -Dsonar.login=%SONAR_USER% ^
+                        -Dsonar.password=%SONAR_PASS%
+                    """
+                }
+            }
+        }
+
+        stage("Build Docker Images") {
+            parallel {
+                stage("Backend image") {
+                    steps {
+                        dir('backend') {
+                            bat "docker build -t ${BACKEND_IMAGE}:1.0.%BUILD_NUMBER% ."
+                        }
+                    }
+                }
+                stage("Frontend image") {
+                    steps {
+                        bat "docker build -t ${FRONTEND_IMAGE}:1.0.%BUILD_NUMBER% ."
+                    }
+                }
+            }
+        }
+
+        stage("Push Docker Images") {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials',
+                    usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    bat """
+                        echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
+                        docker push ${BACKEND_IMAGE}:1.0.%BUILD_NUMBER%
+                        docker push ${FRONTEND_IMAGE}:1.0.%BUILD_NUMBER%
+                    """
+                }
+            }
+        }
+
+        stage("Deploy with Docker Compose") {
+            steps {
+                bat "docker-compose down || exit 0"
+                bat "docker-compose up -d"
+            }
+        }
+
+        stage("Send Success Email") {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'gmailcredential',
+                        usernameVariable: 'GMAIL_USER', passwordVariable: 'GMAIL_PASS')]) {
+                        emailext(
+                            to: 'amine.kbaier@esprit.tn',
+                            subject: "Pipeline Success - ServeurFlex MERN",
+                            body: """
+Bonjour Amine,
+
+Pipeline terminé avec succès !
+
+- Checkout : OK
+- Déps : OK
+- Tests : OK
+- Build : OK
+- Sonar : OK
+- Docker Build & Push : OK
+- Deployment : OK
+
+Cordialement,
+Équipe DevOps
+""",
+                            from: "${GMAIL_USER}",
+                            replyTo: "${GMAIL_USER}",
+                            mimeType: 'text/plain'
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        failure {
+            script {
+                withCredentials([usernamePassword(credentialsId: 'gmailcredential',
+                    usernameVariable: 'GMAIL_USER', passwordVariable: 'GMAIL_PASS')]) {
+                    emailext(
+                        to: 'amine.kbaier@esprit.tn',
+                        subject: "Pipeline Échoué - ServeurFlex MERN",
+                        body: """
+Bonjour Amine,
+
+Le pipeline ServeurFlex MERN a échoué à l'étape : ${currentBuild.currentStage}
+
+Merci de consulter les logs Jenkins pour plus de détails.
+
+Cordialement,
+Équipe DevOps
+""",
+                        from: "${GMAIL_USER}",
+                        replyTo: "${GMAIL_USER}",
+                        mimeType: 'text/plain'
+                    )
+                }
+            }
+        }
+    }
+}

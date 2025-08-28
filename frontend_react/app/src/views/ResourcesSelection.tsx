@@ -1,3 +1,4 @@
+
 import { useEffect, useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -18,7 +19,13 @@ interface Resource {
   image?: string;
   os: 'ubuntu' | 'windows' | 'linux' | 'macOs' | 'CentOs';
   network?: string;
-  iso?: string; // Added iso field
+  iso?: string;
+  connectionDetails?: {
+    ipAddress: string;
+    username: string;
+    password: string;
+    protocol: 'ssh' | 'rdp';
+  };
 }
 
 interface Network {
@@ -41,7 +48,7 @@ interface CustomVMFormData {
   nombreHeure: string;
   os: 'ubuntu' | 'windows' | 'linux' | 'macOs' | 'CentOs';
   network?: string;
-  iso?: string; // Added iso field
+  iso?: string;
 }
 
 interface AvailableResources {
@@ -55,7 +62,7 @@ const ResourcesSelection = () => {
   const navigate = useNavigate();
   const [resources, setResources] = useState<Resource[]>([]);
   const [networks, setNetworks] = useState<Network[]>([]);
-  const [isos, setIsos] = useState<ISO[]>([]); // Added isos state
+  const [isos, setIsos] = useState<ISO[]>([]);
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [duration, setDuration] = useState<number>(0);
   const [error, setError] = useState<string>('');
@@ -75,7 +82,7 @@ const ResourcesSelection = () => {
     nombreHeure: '',
     os: 'ubuntu',
     network: '',
-    iso: '', // Added iso field
+    iso: '',
   });
   const [availableResources, setAvailableResources] = useState<AvailableResources>({ cpu: 0, ram: 0, storage: 0 });
   const itemsPerPage = 6;
@@ -132,7 +139,7 @@ const ResourcesSelection = () => {
     fetchResources();
     fetchAvailableResources();
     fetchAvailableNetworks();
-    fetchAvailableISOs(); // Added ISO fetch
+    fetchAvailableISOs();
   }, [loading]);
 
   const handleSelectResource = (resourceId: string) => {
@@ -195,7 +202,7 @@ const ResourcesSelection = () => {
       nombreHeure,
       os: customVMFormData.os,
       network: customVMFormData.network || undefined,
-      iso: customVMFormData.iso || undefined, // Added iso to payload
+      iso: customVMFormData.iso || undefined,
       clientId: user._id,
     };
 
@@ -212,7 +219,7 @@ const ResourcesSelection = () => {
         nombreHeure: '',
         os: 'ubuntu',
         network: '',
-        iso: '', // Reset iso field
+        iso: '',
       });
       setIsCustomVMModalOpen(false);
       setError('');
@@ -260,7 +267,6 @@ const ResourcesSelection = () => {
   return (
     <MainLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header Card */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <h2 className="text-2xl font-semibold text-gray-900 flex items-center">
@@ -323,10 +329,8 @@ const ResourcesSelection = () => {
           </div>
         </div>
 
-        {/* Error Message */}
         {error && <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-lg">{error}</div>}
 
-        {/* Available Resources Display */}
         <div className="mb-6 p-4 bg-blue-100 text-blue-700 rounded-lg">
           <h3 className="font-semibold">Available Resources</h3>
           <p>CPU: {availableResources.cpu} vCPUs</p>
@@ -334,7 +338,6 @@ const ResourcesSelection = () => {
           <p>Storage: {availableResources.storage} GB</p>
         </div>
 
-        {/* Duration Input */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">Duration (Hours)</label>
           <input
@@ -346,7 +349,6 @@ const ResourcesSelection = () => {
           />
         </div>
 
-        {/* Resource Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {currentResources.length === 0 ? (
             <div className="col-span-full text-center text-gray-500 py-8">No available resources</div>
@@ -365,7 +367,7 @@ const ResourcesSelection = () => {
                   <p className="text-sm text-gray-600 mb-2">Type: {resource.typeRessource}</p>
                   <p className="text-sm text-gray-600 mb-2">OS: {resource.os}</p>
                   <p className="text-sm text-gray-600 mb-2">Network: {resource.network || 'Aucun'}</p>
-                  <p className="text-sm text-gray-600 mb-2">ISO: {resource.iso || 'Aucun'}</p> {/* Added ISO display */}
+                  <p className="text-sm text-gray-600 mb-2">ISO: {resource.iso || 'Aucun'}</p>
                   <p className="text-sm font-medium text-gray-800 mb-4">
                     Price: {estimatePrice(resource.cpu, resource.ram, resource.stockage, resource.typeRessource)} TND (for {duration} hours)
                   </p>
@@ -393,7 +395,6 @@ const ResourcesSelection = () => {
           )}
         </div>
 
-        {/* Pagination */}
         {filteredResources.length > itemsPerPage && (
           <div className="mt-8 flex justify-center">
             <nav className="flex space-x-2">
@@ -424,7 +425,6 @@ const ResourcesSelection = () => {
           </div>
         )}
 
-        {/* Proceed Button */}
         <div className="mt-6">
           <button
             onClick={handleProceed}
@@ -434,7 +434,6 @@ const ResourcesSelection = () => {
           </button>
         </div>
 
-        {/* Details Modal */}
         {selectedResource && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6">
@@ -458,7 +457,7 @@ const ResourcesSelection = () => {
                 <div>
                   <p className="text-sm text-gray-600 mb-2">Type: {selectedResource.typeRessource}</p>
                   <p className="text-sm text-gray-600 mb-2">Network: {selectedResource.network || 'Aucun'}</p>
-                  <p className="text-sm text-gray-600 mb-2">ISO: {selectedResource.iso || 'Aucun'}</p> {/* Added ISO display */}
+                  <p className="text-sm text-gray-600 mb-2">ISO: {selectedResource.iso || 'Aucun'}</p>
                   <dl className="text-sm text-gray-600 space-y-2">
                     <div className="flex justify-between">
                       <dt>CPU:</dt>
@@ -494,7 +493,6 @@ const ResourcesSelection = () => {
           </div>
         )}
 
-        {/* Modal for Creating Custom VM */}
         {isCustomVMModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">

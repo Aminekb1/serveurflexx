@@ -3,12 +3,14 @@ const Ressource = require("../models/ressourceModel");
 const panierModel = require("../models/panierModel");
 const axios = require("axios");
 const catalogueModel = require("../models/catalogueModel");
-const { getAvailableResources, createVM } = require('../utils/vCenter');
+const { getAvailableResources, createVM, getVMDetails, getVMConsoleUrl, configureUbuntuVM, configureWindowsVM } = require('../utils/vCenter');
 const fs = require('fs').promises;
 const path = require('path');
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
+const commandeModel = require("../models/commandeModel");
+const { Client: SSHClient } = require('ssh2'); 
 
 // Ajout des limites de payload ici (au lieu de server.js)
 const router = express.Router();
@@ -121,7 +123,7 @@ module.exports.getAvailableResources = async (req, res) => {
   }
 };
 
-// Créer une VM personnalisée
+// Modifier la section de création de VM personnalisée
 module.exports.createCustomVM = async (req, res) => {
   try {
     const { nom, cpu, ram, stockage, nombreHeure, os, network, iso } = req.body;
@@ -161,7 +163,7 @@ module.exports.createCustomVM = async (req, res) => {
       });
     }
 
-    // Vérifier si l'ISO existe (utiliser les données de getAvailableISOs)
+    // Vérifier si l'ISO existe
     if (iso) {
       console.log('ISO to verify:', iso);
       const isoResponse = await axios.get(`http://localhost:5000/ressource/getAvailableISOs`, {
@@ -183,7 +185,7 @@ module.exports.createCustomVM = async (req, res) => {
       storage: parsedStockage,
       guestOS: osMapping[os] || 'UBUNTU_64',
       network,
-      iso // Passer le chemin de l'ISO
+      iso
     };
 
     let vmResult;
@@ -193,6 +195,69 @@ module.exports.createCustomVM = async (req, res) => {
       console.error("Erreur lors de la création de la VM dans vCenter:", vmError.message);
       return res.status(500).json({ message: "Échec de la création de la VM dans vCenter" });
     }
+
+    // Récupérer l'adresse IP de la VM (déjà fait dans createVM maintenant)
+    let ipAddress = null;
+    try {
+      const baseUrl = `https://${vcenterConfig.hostname}/rest`;
+      const authResponse = await axios.post(
+        `${baseUrl}/com/vmware/cis/session`,
+        {},
+        {
+          auth: { username: vcenterConfig.username, password: vcenterConfig.password },
+          headers: { 'Content-Type': 'application/json' },
+          httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
+        }
+      );
+      const sessionId = authResponse.data.value;
+      const requestConfig = {
+        headers: { 'vmware-api-session-id': sessionId },
+        httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
+      };
+
+      // Attendre que la VM obtienne une IP
+      let attempts = 0;
+      const maxAttempts = 100;
+      
+      while (!ipAddress && attempts < maxAttempts) {
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, 100000));
+        
+        try {
+          const guestResponse = await axios.get(
+            `${baseUrl}/vcenter/vm/${vmResult.vmId}/guest/networking/interfaces`,
+            requestConfig
+          );
+          
+          const interfaces = guestResponse.data.value || [];
+          for (const iface of interfaces) {
+            if (iface.ip && iface.ip.ip_addresses) {
+              const ipv4 = iface.ip.ip_addresses.find(addr => 
+                addr.ip_address && addr.ip_address.includes('.') && !addr.ip_address.startsWith('169.254.')
+              );
+              if (ipv4) {
+                ipAddress = ipv4.ip_address;
+                break;
+              }
+            }
+          }
+        } catch (ipError) {
+          console.log(`Attempt ${attempts}: Waiting for IP address...`);
+        }
+      }
+
+      await axios.delete(`${baseUrl}/com/vmware/cis/session`, requestConfig);
+    } catch (ipError) {
+      console.error("Erreur lors de la récupération de l'IP:", ipError.message);
+    }
+
+    // Définir les détails de connexion
+    const connectionDetails = {
+      ipAddress: ipAddress || 'Adresse IP en attente...',
+      username: os === 'windows' ? 'Administrator' : 'amine',
+      password: 'rootroot',
+      protocol: os === 'windows' ? 'rdp' : 'ssh'
+    };
 
     // Enregistrer la ressource dans MongoDB
     const ressource = new Ressource({
@@ -207,11 +272,93 @@ module.exports.createCustomVM = async (req, res) => {
       typeRessource: 'vm',
       os,
       network: vmResult.network,
-      iso: vmResult.iso // Stocker le chemin de l'ISO
+      iso: vmResult.iso,
+      connectionDetails
     });
 
     await ressource.save();
-    res.status(201).json({ ressource });
+    
+    // Si l'IP n'est pas encore disponible, planifier une tentative de configuration ultérieure
+    if (!ipAddress) {
+      // Planifier une tâche pour réessayer la configuration plus tard
+      setTimeout(async () => {
+        try {
+          console.log(`Retrying configuration for VM ${vmResult.vmId}`);
+          const vcenterConfig = {
+            hostname: process.env.VCENTER_HOST,
+            username: process.env.VCENTER_USERNAME,
+            password: process.env.VCENTER_PASSWORD,
+          };
+          
+          // Réessayer d'obtenir l'IP
+          let retryIp = null;
+          const baseUrl = `https://${vcenterConfig.hostname}/rest`;
+          const authResponse = await axios.post(
+            `${baseUrl}/com/vmware/cis/session`,
+            {},
+            {
+              auth: { username: vcenterConfig.username, password: vcenterConfig.password },
+              headers: { 'Content-Type': 'application/json' },
+              httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
+            }
+          );
+          const sessionId = authResponse.data.value;
+          const requestConfig = {
+            headers: { 'vmware-api-session-id': sessionId },
+            httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
+          };
+
+          const guestResponse = await axios.get(
+            `${baseUrl}/vcenter/vm/${vmResult.vmId}/guest/networking/interfaces`,
+            requestConfig
+          );
+          
+          const interfaces = guestResponse.data.value || [];
+          for (const iface of interfaces) {
+            if (iface.ip && iface.ip.ip_addresses) {
+              const ipv4 = iface.ip.ip_addresses.find(addr => 
+                addr.ip_address && addr.ip_address.includes('.') && !addr.ip_address.startsWith('169.254.')
+              );
+              if (ipv4) {
+                retryIp = ipv4.ip_address;
+                break;
+              }
+            }
+          }
+
+          await axios.delete(`${baseUrl}/com/vmware/cis/session`, requestConfig);
+
+          if (retryIp) {
+            console.log(`Retry successful, IP found: ${retryIp}`);
+            
+            // Mettre à jour la ressource avec la nouvelle IP
+            await Ressource.findOneAndUpdate(
+              { id: vmResult.vmId },
+              { 
+                'connectionDetails.ipAddress': retryIp,
+                'connectionDetails.username': os === 'windows' ? 'Administrator' : 'amine',
+                'connectionDetails.password': 'rootroot',
+                'connectionDetails.protocol': os === 'windows' ? 'rdp' : 'ssh'
+              }
+            );
+
+            // Configurer la VM
+            if (os.includes('ubuntu') || os.includes('linux')) {
+              await configureUbuntuVM(retryIp, 'amine', 'rootroot');
+            } else if (os.includes('windows')) {
+              await configureWindowsVM(retryIp, 'Administrator', 'rootroot');
+            }
+          }
+        } catch (error) {
+          console.error(`Error in retry configuration for VM ${vmResult.vmId}:`, error.message);
+        }
+      }, 300000); // Réessayer après 5 minutes
+    }
+
+    res.status(201).json({ 
+      ressource,
+      message: ipAddress ? "VM créée et configurée avec succès" : "VM créée, configuration en cours..."
+    });
   } catch (error) {
     console.error("Erreur createCustomVM:", error.message);
     res.status(500).json({ message: "Erreur lors de la création de la VM" });
@@ -416,5 +563,191 @@ module.exports.removeResourceFromClient = async (req, res) => {
   } catch (error) {
     console.error("Erreur removeResourceFromClient:", error.message);
     res.status(500).json({ message: "Erreur lors du retrait de la ressource" });
+  }
+};
+//  fonction pour permettre au client d'accéder aux détails de connexion
+module.exports.getVMConnectionDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Utilisateur non authentifié" });
+    }
+
+    const ressource = await Ressource.findById(id);
+    if (!ressource) {
+      return res.status(404).json({ message: "Ressource introuvable" });
+    }
+
+    const command = await commandeModel.findOne({ client: userId, ressources: id, status: 'accepté' });
+    if (!command) {
+      return res.status(403).json({ message: "Vous n'avez pas accès à cette ressource" });
+    }
+
+    let connectionDetails = ressource.connectionDetails || {};
+    console.log('Existing connectionDetails:', connectionDetails);
+    console.log('Ressource ID:', ressource.id);
+
+    // If connectionDetails is incomplete or missing, fetch from vCenter
+    if (!connectionDetails.ipAddress || !connectionDetails.protocol) {
+      const vcenterConfig = {
+        hostname: process.env.VCENTER_HOST,
+        username: process.env.VCENTER_USERNAME,
+        password: process.env.VCENTER_PASSWORD,
+      };
+      console.log('Fetching VM details for ID:', ressource.id);
+      const vmDetails = await getVMDetails(vcenterConfig, ressource.id);
+      connectionDetails = { ...connectionDetails, ...vmDetails };
+      console.log('Fetched VM details:', vmDetails);
+
+      // Update the resource document with fetched details
+      await Ressource.findByIdAndUpdate(id, { $set: { connectionDetails } });
+    }
+
+    if (!connectionDetails.ipAddress) {
+      return res.status(400).json({ message: "Aucun détail de connexion disponible pour cette ressource" });
+    }
+
+    res.status(200).json({
+      connectionDetails: {
+        ipAddress: connectionDetails.ipAddress,
+        username: connectionDetails.username || 'amine',
+        password:  'rootroot',
+        protocol: connectionDetails.protocol,
+        instructions: connectionDetails.instructions
+      }
+    });
+  } catch (error) {
+    console.error("Erreur getVMDetails:", error.message, error.stack);
+    res.status(500).json({ message: "Erreur lors de la récupération des détails de connexion" });
+  }
+};
+module.exports.getVMConsole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Utilisateur non authentifié" });
+    }
+
+    const ressource = await Ressource.findById(id);
+    if (!ressource) {
+      return res.status(404).json({ message: "Ressource introuvable" });
+    }
+
+    // Vérifier que l'utilisateur a accès à cette ressource
+    const command = await commandeModel.findOne({ 
+      client: userId, 
+      ressources: id, 
+      status: 'accepté' 
+    });
+    
+    if (!command) {
+      return res.status(403).json({ message: "Vous n'avez pas accès à cette ressource" });
+    }
+
+    const vcenterConfig = {
+      hostname: process.env.VCENTER_HOST,
+      username: process.env.VCENTER_USERNAME,
+      password: process.env.VCENTER_PASSWORD,
+    };
+
+    // Option 1: Utiliser l'API vSphere directe
+    const consoleUrl = await getVMConsoleUrl(vcenterConfig, ressource.id);
+    
+    // Option 2: Utiliser Guacamole (décommentez si configuré)
+    // const consoleUrl = await getGuacamoleConnection(ressource.id, ressource.connectionDetails);
+
+    res.status(200).json({ consoleUrl });
+  } catch (error) {
+    console.error("Erreur getVMConsole:", error.message);
+    res.status(500).json({ message: "Erreur lors de la récupération de la console: " + error.message });
+  }
+};
+
+// Endpoint pour vérifier l'état d'une VM
+module.exports.checkVMStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ressource = await Ressource.findById(id);
+    
+    if (!ressource) {
+      return res.status(404).json({ message: "Ressource introuvable" });
+    }
+
+    const vcenterConfig = {
+      hostname: process.env.VCENTER_HOST,
+      username: process.env.VCENTER_USERNAME,
+      password: process.env.VCENTER_PASSWORD,
+    };
+
+    const baseUrl = `https://${vcenterConfig.hostname}/rest`;
+    const authResponse = await axios.post(
+      `${baseUrl}/com/vmware/cis/session`,
+      {},
+      {
+        auth: { username: vcenterConfig.username, password: vcenterConfig.password },
+        headers: { 'Content-Type': 'application/json' },
+        httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
+      }
+    );
+    
+    const sessionId = authResponse.data.value;
+    const requestConfig = {
+      headers: { 'vmware-api-session-id': sessionId },
+      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
+    };
+
+    // Récupérer les informations de la VM
+    const vmResponse = await axios.get(
+      `${baseUrl}/vcenter/vm/${ressource.id}`,
+      requestConfig
+    );
+    
+    const vmInfo = vmResponse.data.value;
+    
+    // Récupérer l'adresse IP
+    let ipAddress = ressource.connectionDetails.ipAddress;
+    try {
+      const guestResponse = await axios.get(
+        `${baseUrl}/vcenter/vm/${ressource.id}/guest/networking/interfaces`,
+        requestConfig
+      );
+      
+      const interfaces = guestResponse.data.value || [];
+      for (const iface of interfaces) {
+        if (iface.ip && iface.ip.ip_addresses) {
+          const ipv4 = iface.ip.ip_addresses.find(addr => 
+            addr.ip_address && addr.ip_address.includes('.') && !addr.ip_address.startsWith('169.254.')
+          );
+          if (ipv4) {
+            ipAddress = ipv4.ip_address;
+            break;
+          }
+        }
+      }
+    } catch (ipError) {
+      console.error("Erreur lors de la récupération de l'IP:", ipError.message);
+    }
+
+    await axios.delete(`${baseUrl}/com/vmware/cis/session`, requestConfig);
+
+    // Mettre à jour la ressource si l'IP a changé
+    if (ipAddress !== ressource.connectionDetails.ipAddress) {
+      await Ressource.findByIdAndUpdate(id, {
+        'connectionDetails.ipAddress': ipAddress
+      });
+    }
+
+    res.status(200).json({
+      powerState: vmInfo.power_state,
+      ipAddress: ipAddress,
+      isReady: ipAddress && ipAddress !== 'Adresse IP en attente...'
+    });
+  } catch (error) {
+    console.error("Erreur checkVMStatus:", error.message);
+    res.status(500).json({ message: "Erreur lors de la vérification de l'état de la VM" });
   }
 };

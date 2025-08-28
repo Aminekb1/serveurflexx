@@ -19,10 +19,10 @@ const Login = () => {
             <div className="mx-auto">
               <FullLogo />
             </div>
-            <p className="text-sm text-center text-dark my-3">Sign In on Cloud graph</p>
+            <p className="text-sm text-center text-dark my-3">Sign In on serveurflex</p>
             <AuthLogin />
             <div className="flex gap-2 text-base text-ld font-medium mt-6 items-center justify-center">
-              <p>New to Cloud graph?</p>
+              <p>New to serveurflex?</p>
               <Link to="/auth/register" className="text-primary text-sm font-medium">
                 Create an account
               </Link>

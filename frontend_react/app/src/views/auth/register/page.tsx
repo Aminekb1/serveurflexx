@@ -21,7 +21,7 @@ const BoxedRegister = () => {
               <FullLogo />
             </div>
             <p className="text-sm text-center text-dark my-3">
-              Sign Up on Cloud graph
+              Sign Up on Serveurflex
             </p>
             <AuthRegister />
             <div className="flex gap-2 text-base text-ld font-medium mt-6 items-center justify-center">
