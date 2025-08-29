@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "test": "echo \"No backend tests yet\" && exit 0"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.5",
