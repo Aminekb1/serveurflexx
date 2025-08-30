@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+/* import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import Neo4jConnectionForm from '../../components/connection/Neo4jConnectionForm';
+//import Neo4jConnectionForm from '../../components/connection/Neo4jConnectionForm';
 import { logActivity, setStartTime, clearStartTime } from "../../utils/theme/activityLogger";
 
 interface Node {
@@ -298,4 +298,4 @@ const CreateGraph: React.FC = () => {
   );
 };
 
-export default CreateGraph;
+export default CreateGraph; */
