@@ -1,5 +1,5 @@
 // src/views/clear-graph/ClearGraph.tsx
-import React, { useState } from 'react';
+/* import React, { useState } from 'react';
 import { useEffect } from "react";
 import axios from 'axios';
 import Neo4jConnectionForm from '../../components/connection/Neo4jConnectionForm';
@@ -83,11 +83,11 @@ const ClearGraph: React.FC = () => {
     <div className="p-6">
       <h3 className="text-lg font-semibold mb-4">Clear Graph</h3>
 
-      {/* Formulaire de connexion Neo4j */}
-      <Neo4jConnectionForm onConnect={handleNeo4jConnect} />
+      {/* Formulaire de connexion Neo4j */
+      {/* <Neo4jConnectionForm onConnect={handleNeo4jConnect} /> */}
 
       {/* Bouton pour supprimer le graphe */}
-      <div className="bg-white dark:bg-dark p-6 rounded-lg shadow-md">
+      {/* <div className="bg-white dark:bg-dark p-6 rounded-lg shadow-md">
         <h4 className="text-md font-medium mb-4">Clear Graph in Neo4j</h4>
         <p className="text-sm text-gray-600 mb-4">
           This action will delete all nodes and relationships in the Neo4j database. Proceed with caution.
@@ -106,4 +106,4 @@ const ClearGraph: React.FC = () => {
   );
 };
 
-export default ClearGraph;
+export default ClearGraph; */}
