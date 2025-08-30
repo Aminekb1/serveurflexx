@@ -1,3 +1,5 @@
+import { JSX } from "react";
+
 export interface registerType {
   title?: string;
   subtitle?: JSX.Element | JSX.Element[];
