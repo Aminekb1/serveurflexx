@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Badge, Dropdown, Table } from "flowbite-react";
+import { Dropdown, Table } from "flowbite-react";
 import { HiOutlineDotsVertical } from "react-icons/hi";
 import { Icon } from "@iconify/react";
 import { useNavigate } from 'react-router-dom';
