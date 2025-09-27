@@ -6,7 +6,7 @@
     "start": "node app.js",
     "dev": "nodemon app.js",
     "test": "jest",
-    "test:coverage": "jest --coverage --runInBand  --passWithNoTests"
+    "test:coverage": "jest --coverage --runInBand --passWithNoTests"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.5",
