@@ -1,27 +1,4 @@
-/* // backend/.../__tests__/models/ressource.model.test.js
-const Ressource = require('../../models/ressourceModel');
 
-describe('Ressource model', () => {
-  test('model is exported', () => {
-    expect(Ressource).toBeDefined();
-  });
-
-  test('modelName is Ressource', () => {
-    expect(Ressource.modelName).toBe('Ressource');
-  });
-
-  test('schema contains expected paths', () => {
-    const paths = Ressource.schema.paths;
-    expect(paths).toHaveProperty('nom');
-    expect(paths).toHaveProperty('cpu');
-    expect(paths).toHaveProperty('ram');
-    expect(paths).toHaveProperty('stockage');
-    expect(paths).toHaveProperty('nombreHeure');
-    expect(paths).toHaveProperty('disponibilite');
-    expect(paths).toHaveProperty('connectionDetails');
-  });
-});
- */
 // backend/.../__tests__/models/ressource.model.test.js
 const Ressource = require('../../models/ressourceModel');
 
